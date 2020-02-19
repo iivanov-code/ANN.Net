@@ -42,7 +42,7 @@ namespace NeuralNetwork.Utils
             return drawing as NetworkDrawing;
         }
 #else
-        public static NetworkDrawing GetDrawing(this Network network, float width = 1920, float height = 1080)
+        public static NetworkDrawing GetDrawing(this INetwork network, float width = 1920, float height = 1080)
         {
             throw new NotImplementedException("CAN NOT DRAW IMAGE IN RELEASE MODE");
         }
