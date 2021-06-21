@@ -1,2 +1,2 @@
-# ArtificialNeuralNetwork
-C# .Net implementation of artificial neural network. Implemented to resemble the real neural network by sticking to Object Oriented Principals. To be used by dotnet developers for studying neural network workings.
+# ANN.Net Artificial Neural Network
+C# implementation of standart deep neural network, with different types of neuro activation functions.
