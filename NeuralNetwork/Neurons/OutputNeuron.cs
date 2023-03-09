@@ -1,19 +1,19 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class OutputNeuron : Neuron, IOutputNeuron
     {
         public OutputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
             : base(activationType)
         {
-            this.Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+            Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
         }
 
-        public float Value => this._lastValue;
+        public float Value => _lastValue;
 
         public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
         {

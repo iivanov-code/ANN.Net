@@ -1,9 +1,9 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.ActivationFunctions
+namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
     [ActivationType(Type = ActivationTypes.SoftStep)]

@@ -1,9 +1,8 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 
-namespace NeuralNetwork.ActivationFunctions
+namespace ANN.Net.ActivationFunctions
 {
     [ActivationType(Type = ActivationTypes.SoftMax)]
     internal class SoftMaxActivation : BaseActivation<SigmoidActivation>, IActivationFunction
@@ -15,7 +14,7 @@ namespace NeuralNetwork.ActivationFunctions
         public float Activation(float value)
         {
             return 0;
-           // return input.X / input.SumInputs;
+            // return input.X / input.SumInputs;
         }
 
         public float Prime(float value)

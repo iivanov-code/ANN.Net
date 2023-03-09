@@ -1,9 +1,8 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class BiasNeuron : INeuron, IInputNeuron, IHiddenNeuron
     {
@@ -11,8 +10,8 @@ namespace NeuralNetwork.Neurons
 
         public BiasNeuron()
         {
-            this.Outputs = new SynapseCollection<ISynapse>();
-            this.Inputs = new SynapseCollection<ISynapse>();
+            Outputs = new SynapseCollection<ISynapse>();
+            Inputs = new SynapseCollection<ISynapse>();
         }
 
         public Guid ID => Guid.NewGuid();

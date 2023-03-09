@@ -1,4 +1,4 @@
-﻿namespace NeuralNetwork.Interfaces
+﻿namespace ANN.Net.Abstractions.Interfaces
 {
     public interface ISynapse
     {

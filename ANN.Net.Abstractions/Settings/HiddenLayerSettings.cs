@@ -1,7 +1,7 @@
-﻿using NeuralNetwork.Enums;
+﻿using ANN.Net.Abstractions.Enums;
 using System.ComponentModel;
 
-namespace NeuralNetwork.Settings
+namespace ANN.Net.Abstractions.Settings
 {
     public class HiddenLayerSettings
     {

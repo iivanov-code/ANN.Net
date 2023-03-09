@@ -1,7 +1,6 @@
-﻿using NeuralNetwork.Interfaces;
-using System.Collections.Generic;
+﻿using ANN.Net.Abstractions.Interfaces;
 
-namespace NeuralNetwork.HelperClasses
+namespace ANN.Net.HelperClasses
 {
     public static class SynapseExtensions
     {

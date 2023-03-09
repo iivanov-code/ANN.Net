@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NeuralNetwork.Enums
+namespace ANN.Net.Abstractions.Enums
 {
     [Serializable]
     public enum ActivationTypes

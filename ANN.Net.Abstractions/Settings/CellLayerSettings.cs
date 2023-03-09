@@ -1,6 +1,6 @@
-﻿using NeuralNetwork.Enums;
+﻿using ANN.Net.Abstractions.Enums;
 
-namespace NeuralNetwork.Settings
+namespace ANN.Net.Abstractions.Settings
 {
     public class CellLayerSettings : HiddenLayerSettings
     {

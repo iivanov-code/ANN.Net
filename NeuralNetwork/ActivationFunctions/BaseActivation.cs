@@ -1,8 +1,8 @@
-﻿using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Interfaces;
 using System;
 using System.Collections.Generic;
 
-namespace NeuralNetwork.ActivationFunctions
+namespace ANN.Net.ActivationFunctions
 {
     internal abstract class BaseActivation<T>
         where T : class, IActivationFunction, new()

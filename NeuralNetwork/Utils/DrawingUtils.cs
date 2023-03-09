@@ -1,11 +1,11 @@
-﻿using NeuralNetwork.Interfaces;
-using NeuralNetwork.Neurons;
+﻿using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Neurons;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 
-namespace NeuralNetwork.Utils
+namespace ANN.Net.Utils
 {
     public static class DrawingUtils
     {
@@ -19,7 +19,7 @@ namespace NeuralNetwork.Utils
 
             int layersCount = net.HiddenLayers.Count + 2;
 
-            int columnsCount = (layersCount * 2) - 1;
+            int columnsCount = layersCount * 2 - 1;
             int maxRowsCount = Math.Max(net.InputNeurons.Count, net.OutputNeurons.Count);
             maxRowsCount = Math.Max(maxRowsCount, net.HiddenLayers.Select(x => x.Count).Max()) * 2;
 
@@ -124,8 +124,8 @@ namespace NeuralNetwork.Utils
     {
         public BaseNetworkDrawing()
         {
-            this.Connections = new Dictionary<LineKey, ILine>();
-            this.NodeCircles = new HashSet<INode>();
+            Connections = new Dictionary<LineKey, ILine>();
+            NodeCircles = new HashSet<INode>();
         }
 
         public HashSet<INode> NodeCircles { get; set; }
@@ -141,8 +141,8 @@ namespace NeuralNetwork.Utils
     {
         public Node(Guid id, Rectangle circle)
         {
-            this.ID = id;
-            this.Circle = circle;
+            ID = id;
+            Circle = circle;
         }
 
         public Guid ID { get; set; }
@@ -160,8 +160,8 @@ namespace NeuralNetwork.Utils
     {
         public LineKey(Guid fromId, Guid toId)
         {
-            this.FromID = fromId;
-            this.ToID = toId;
+            FromID = fromId;
+            ToID = toId;
         }
 
         public Guid FromID { get; set; }
@@ -174,12 +174,12 @@ namespace NeuralNetwork.Utils
 
         public bool Equals(LineKey other)
         {
-            return this.GetHashCode() == other.GetHashCode();
+            return GetHashCode() == other.GetHashCode();
         }
 
         public override int GetHashCode()
         {
-            return this.FromID.GetHashCode() ^ this.ToID.GetHashCode();
+            return FromID.GetHashCode() ^ ToID.GetHashCode();
         }
 
     }
@@ -189,7 +189,7 @@ namespace NeuralNetwork.Utils
         public Line(Guid fromID, Guid toID, float weight)
             : base(fromID, toID)
         {
-            this.Weight = weight;
+            Weight = weight;
         }
 
         public Point From { get; set; }

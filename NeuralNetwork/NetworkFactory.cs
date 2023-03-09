@@ -1,9 +1,9 @@
-﻿using NeuralNetwork.Interfaces;
-using NeuralNetwork.Settings;
+﻿using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Settings;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace NeuralNetwork
+namespace ANN.Net
 {
     public static class NetworkFactory
     {

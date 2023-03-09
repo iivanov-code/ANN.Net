@@ -1,8 +1,8 @@
-﻿using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Interfaces;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace NeuralNetwork.HelperClasses
+namespace ANN.Net.HelperClasses
 {
     internal class SynapseCollection<T> : ISynapseCollection<T>, ICollection<T>
         where T : ISynapse
@@ -10,7 +10,7 @@ namespace NeuralNetwork.HelperClasses
         private List<T> list;
         public SynapseCollection(ushort counter = 0)
         {
-            this.ActivatedCount = counter;
+            ActivatedCount = counter;
             list = new List<T>();
         }
 
@@ -76,9 +76,9 @@ namespace NeuralNetwork.HelperClasses
 
         public bool CheckCountAndReset()
         {
-            if (this.ActivatedCount == 0)
+            if (ActivatedCount == 0)
             {
-                this.ActivatedCount = (ushort)this.Count;
+                ActivatedCount = (ushort)Count;
                 return true;
             }
             return false;

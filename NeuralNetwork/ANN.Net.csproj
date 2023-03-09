@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup Label="Globals">
+		<SccProjectName>SAK</SccProjectName>
+		<SccProvider>SAK</SccProvider>
+		<SccAuxPath>SAK</SccAuxPath>
+		<SccLocalPath>SAK</SccLocalPath>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<TargetFrameworks>net6.0</TargetFrameworks>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\ANN.Net.Abstractions\ANN.Net.Abstractions.csproj" />
+	</ItemGroup>
+
+</Project>

@@ -1,19 +1,19 @@
-﻿using NeuralNetwork.ActivationFunctions;
-using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.ActivationFunctions;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class LSTMCell : HiddenNeuron, IHiddenNeuron, ILSTMCell
     {
         public LSTMCell(ActivationTypes activationType, ushort recurrentInputs = 0)
             : base(activationType, recurrentInputs)
         {
-            this.InputGateSynapses = new SynapseCollection<ISynapse>(recurrentInputs);
-            this.ForgetGateSynapses = new SynapseCollection<ISynapse>(recurrentInputs);
-            this.OutputGateSypanses = new SynapseCollection<ISynapse>(recurrentInputs);
+            InputGateSynapses = new SynapseCollection<ISynapse>(recurrentInputs);
+            ForgetGateSynapses = new SynapseCollection<ISynapse>(recurrentInputs);
+            OutputGateSypanses = new SynapseCollection<ISynapse>(recurrentInputs);
         }
 
         public ISynapseCollection<ISynapse> ForgetGateSynapses { get; }
@@ -76,7 +76,7 @@ namespace NeuralNetwork.Neurons
         {
             if (Inputs.Zeroed() && InputGateSynapses.Zeroed() && ForgetGateSynapses.Zeroed() && OutputGateSypanses.Zeroed())
             {
-                cellState = (inputGateValue * _value) + (forgetGateValue * cellState);
+                cellState = inputGateValue * _value + forgetGateValue * cellState;
                 outputGateValue = SigmoidActivation.Activate(outputGateValue + cellState);
                 _value = TanHActivation.Activate(cellState) * outputGateValue;
                 _lastValue = _value;

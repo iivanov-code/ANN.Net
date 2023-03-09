@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace NeuralNetwork.Interfaces
+namespace ANN.Net.Abstractions.Interfaces
 {
     public interface ISynapseCollection<T> : IReadOnlyCollection<T>
     {

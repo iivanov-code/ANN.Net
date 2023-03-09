@@ -1,7 +1,7 @@
-﻿using NeuralNetwork.Enums;
+﻿using ANN.Net.Abstractions.Enums;
 using System;
 
-namespace NeuralNetwork.HelperClasses
+namespace ANN.Net.HelperClasses
 {
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
     public sealed class ActivationTypeAttribute : Attribute

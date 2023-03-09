@@ -1,9 +1,9 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class InputNeuron : Neuron, IInputNeuron
     {
@@ -11,15 +11,15 @@ namespace NeuralNetwork.Neurons
             : base(activationType)
         {
             if (recurrentInputs != 0)
-                this.Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+                Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
 
-            this.Outputs = new SynapseCollection<ISynapse>();
+            Outputs = new SynapseCollection<ISynapse>();
         }
 
         public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
         {
             AccumulateError(errorSignal, eWeightedSignal, updateWeight);
-            this.Outputs.ResetCounter();
+            Outputs.ResetCounter();
             _error = 0;
         }
 

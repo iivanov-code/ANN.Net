@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NeuralNetwork.HelperClasses
+namespace ANN.Net.HelperClasses
 {
     public sealed class NeuronValue : IEquatable<NeuronValue>
     {
@@ -32,7 +32,7 @@ namespace NeuralNetwork.HelperClasses
 
         public NeuronValue(float[] values)
         {
-            this.value = values;
+            value = values;
         }
 
         public static implicit operator NeuronValue(float value)
@@ -62,14 +62,14 @@ namespace NeuralNetwork.HelperClasses
 
         public override bool Equals(object obj)
         {
-            return this.Equals((NeuronValue)obj);
+            return Equals((NeuronValue)obj);
         }
 
         public bool Equals(NeuronValue other)
         {
             for (int i = 0; i < other.value.Length; i++)
             {
-                if (this.value[i] != other.value[i])
+                if (value[i] != other.value[i])
                 {
                     return false;
                 }

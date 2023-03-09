@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NeuralNetwork.HelperClasses
+namespace ANN.Net.HelperClasses
 {
     [Serializable]
     public struct Rate
@@ -11,7 +11,7 @@ namespace NeuralNetwork.HelperClasses
         {
             if (value >= 0 && value <= 1)
             {
-                this.value = (float)value;
+                this.value = value;
             }
             else
             {
@@ -31,12 +31,12 @@ namespace NeuralNetwork.HelperClasses
 
         public override bool Equals(object obj)
         {
-            return this.value == ((Rate)obj).value;
+            return value == ((Rate)obj).value;
         }
 
         public override int GetHashCode()
         {
-            return this.value.GetHashCode();
+            return value.GetHashCode();
         }
 
         public static bool operator ==(Rate left, Rate right)

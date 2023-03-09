@@ -1,15 +1,15 @@
-﻿using NeuralNetwork.Connections;
-using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using NeuralNetwork.Neurons;
-using NeuralNetwork.Settings;
-using NeuralNetwork.Utils;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Settings;
+using ANN.Net.Connections;
+using ANN.Net.HelperClasses;
+using ANN.Net.Neurons;
+using ANN.Net.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace NeuralNetwork
+namespace ANN.Net
 {
     internal class Network : INetwork
     {
@@ -23,11 +23,11 @@ namespace NeuralNetwork
 
         public Network(NetworkSettings settings)
         {
-            this.MinValue = settings.MinNetworkValue;
-            this.MaxValue = settings.MaxNetworkValue;
-            this.ShouldNormalize = settings.ShouldNormalize;
-            this.InputNeurons = new List<IInputNeuron>();
-            this.OutputNeurons = new List<IOutputNeuron>();
+            MinValue = settings.MinNetworkValue;
+            MaxValue = settings.MaxNetworkValue;
+            ShouldNormalize = settings.ShouldNormalize;
+            InputNeurons = new List<IInputNeuron>();
+            OutputNeurons = new List<IOutputNeuron>();
         }
 
         internal virtual IList<ICollection<IHiddenNeuron>> BuildHiddenLayers(IEnumerable<INeuron> previousLayer, HiddenLayerSettings settings, ushort recurrentInputs = 0)
@@ -128,7 +128,7 @@ namespace NeuralNetwork
             if (settings.HasBiasNeuron)
                 tempInputNeurons.Add(new BiasNeuron());
 
-            ((List<IInputNeuron>)this.InputNeurons).AddRange(tempInputNeurons);
+            ((List<IInputNeuron>)InputNeurons).AddRange(tempInputNeurons);
             return tempInputNeurons;
         }
 
@@ -146,7 +146,7 @@ namespace NeuralNetwork
                 }
             }
 
-            ((List<IOutputNeuron>)this.OutputNeurons).AddRange(tempOutputLayer);
+            ((List<IOutputNeuron>)OutputNeurons).AddRange(tempOutputLayer);
             return tempOutputLayer;
         }
 
@@ -233,7 +233,7 @@ namespace NeuralNetwork
 
         private static float XavierWeight(int neuronCount)
         {
-            return (1 / NetworkUtils.GetRandomNumber(1, neuronCount)) + NetworkUtils.GetRandomNumber(0.001f, 0.009f, 4);
+            return 1 / NetworkUtils.GetRandomNumber(1, neuronCount) + NetworkUtils.GetRandomNumber(0.001f, 0.009f, 4);
         }
     }
 }

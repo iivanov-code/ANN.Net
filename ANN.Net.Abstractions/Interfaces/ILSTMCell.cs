@@ -1,6 +1,6 @@
-﻿namespace NeuralNetwork.Interfaces
+﻿namespace ANN.Net.Abstractions.Interfaces
 {
-    internal interface ILSTMCell : IHiddenNeuron
+    public interface ILSTMCell : IHiddenNeuron
     {
         void ForgetGate(float value);
         void InputGate(float value);

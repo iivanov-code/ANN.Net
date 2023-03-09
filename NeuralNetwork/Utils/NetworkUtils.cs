@@ -1,10 +1,10 @@
-﻿using NeuralNetwork.ActivationFunctions;
-using NeuralNetwork.Enums;
-using NeuralNetwork.Interfaces;
-using NeuralNetwork.Neurons;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.ActivationFunctions;
+using ANN.Net.Neurons;
 using System;
 
-namespace NeuralNetwork.Utils
+namespace ANN.Net.Utils
 {
     internal static class NetworkUtils
     {
@@ -15,7 +15,7 @@ namespace NeuralNetwork.Utils
 
         public static float UnNormalize(float normalizedValue, float maxValue, float minValue)
         {
-            return minValue + (normalizedValue * maxValue) - (normalizedValue * minValue);
+            return minValue + normalizedValue * maxValue - normalizedValue * minValue;
         }
 
         private static Random rand;
@@ -42,7 +42,7 @@ namespace NeuralNetwork.Utils
 
         public static float GetRandomNumber(this Random rand, float minimum, float maximum, int decimals = 6)
         {
-            float value = (float)((rand.NextDouble() * (maximum - minimum)) + minimum);
+            float value = (float)(rand.NextDouble() * (maximum - minimum) + minimum);
             return (float)Math.Round(value, decimals, MidpointRounding.AwayFromZero);
         }
 

@@ -1,8 +1,8 @@
-﻿using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Connections
+namespace ANN.Net.Connections
 {
     [Serializable]
     internal class Synapse : ISynapse
@@ -33,7 +33,7 @@ namespace NeuralNetwork.Connections
 
         public void Backpropagate(float signal)
         {
-            BackpropagateConnection(signal, signal * weight, this.UpdateWeight);
+            BackpropagateConnection(signal, signal * weight, UpdateWeight);
         }
 
         public void UpdateWeight(float gradient)

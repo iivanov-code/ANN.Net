@@ -1,4 +1,4 @@
-﻿namespace NeuralNetwork.Enums
+﻿namespace ANN.Net.Abstractions.Enums
 {
     public enum BiasType
     {

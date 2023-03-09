@@ -1,9 +1,9 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.Interfaces;
-using NeuralNetwork.Utils;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Utils;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal abstract class Neuron : INeuron
     {
@@ -20,7 +20,7 @@ namespace NeuralNetwork.Neurons
 
         public Neuron(ActivationTypes activationType)
         {
-            this.Function = NetworkUtils.GetActivation(activationType);
+            Function = NetworkUtils.GetActivation(activationType);
         }
 
         public abstract void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null);

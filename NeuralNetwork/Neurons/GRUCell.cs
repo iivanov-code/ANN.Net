@@ -1,8 +1,8 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class GRUCell : Neuron, INeuron
     {

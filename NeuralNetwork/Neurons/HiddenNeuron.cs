@@ -1,23 +1,23 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
+﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.HelperClasses;
 using System;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
     internal class HiddenNeuron : Neuron, IHiddenNeuron
     {
         public HiddenNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
             : base(activationType)
         {
-            this.Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
-            this.Outputs = new SynapseCollection<ISynapse>();
+            Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+            Outputs = new SynapseCollection<ISynapse>();
         }
 
         public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
         {
             AccumulateError(errorSignal, eWeightedSignal, updateWeight);
-            if (this.Outputs.CheckCountAndReset())
+            if (Outputs.CheckCountAndReset())
             {
                 _lastValue = Function.Prime(_lastValue);
                 _error = _lastValue * _error; //derivative * errorSignal
