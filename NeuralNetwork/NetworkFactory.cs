@@ -1,7 +1,7 @@
-﻿using ANN.Net.Abstractions.Interfaces;
-using ANN.Net.Abstractions.Settings;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Settings;
 
 namespace ANN.Net
 {

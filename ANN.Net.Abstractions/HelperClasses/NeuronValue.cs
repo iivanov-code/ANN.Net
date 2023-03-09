@@ -1,18 +1,20 @@
 ﻿using System;
 
-namespace ANN.Net.HelperClasses
+namespace ANN.Net.Abstractions.HelperClasses
 {
-    public sealed class NeuronValue : IEquatable<NeuronValue>
+    public struct NeuronValue : IEquatable<NeuronValue>
     {
         private float[] value;
-
-        public NeuronValue() { }
 
         public NeuronValue(float value)
         {
             this.value = new float[1] { value };
         }
 
+        public NeuronValue(float[] values)
+        {
+            value = values;
+        }
 
         public int Length
         {
@@ -30,21 +32,6 @@ namespace ANN.Net.HelperClasses
             }
         }
 
-        public NeuronValue(float[] values)
-        {
-            value = values;
-        }
-
-        public static implicit operator NeuronValue(float value)
-        {
-            return new NeuronValue(value);
-        }
-
-        public static implicit operator NeuronValue(float[] value)
-        {
-            return new NeuronValue(value);
-        }
-
         public static implicit operator float(NeuronValue value)
         {
             return value.value[0];
@@ -55,9 +42,14 @@ namespace ANN.Net.HelperClasses
             return value.value;
         }
 
-        public override int GetHashCode()
+        public static implicit operator NeuronValue(float value)
         {
-            return 0;
+            return new NeuronValue(value);
+        }
+
+        public static implicit operator NeuronValue(float[] value)
+        {
+            return new NeuronValue(value);
         }
 
         public override bool Equals(object obj)
@@ -75,6 +67,11 @@ namespace ANN.Net.HelperClasses
                 }
             }
             return true;
+        }
+
+        public override int GetHashCode()
+        {
+            return 0;
         }
     }
 }

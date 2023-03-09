@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ANN.Net.HelperClasses
+namespace ANN.Net.Abstractions.HelperClasses
 {
     [Serializable]
     public struct Rate

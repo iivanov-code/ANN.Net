@@ -1,9 +1,9 @@
-﻿using ANN.Net.Abstractions.Interfaces;
-using ANN.Net.Neurons;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Neurons;
 
 namespace ANN.Net.Utils
 {

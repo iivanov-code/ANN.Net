@@ -1,7 +1,7 @@
-﻿using ANN.Net.Abstractions.Enums;
+﻿using System;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.HelperClasses;
 using ANN.Net.Abstractions.Interfaces;
-using ANN.Net.HelperClasses;
-using System;
 
 namespace ANN.Net.Neurons
 {

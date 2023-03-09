@@ -1,5 +1,5 @@
-﻿using ANN.Net.Abstractions.Enums;
-using System.ComponentModel;
+﻿using System.ComponentModel;
+using ANN.Net.Abstractions.Enums;
 
 namespace ANN.Net.Abstractions.Settings
 {

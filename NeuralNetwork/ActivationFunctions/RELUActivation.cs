@@ -1,6 +1,6 @@
 ﻿using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.HelperClasses;
 using ANN.Net.Abstractions.Interfaces;
-using ANN.Net.HelperClasses;
 
 namespace ANN.Net.ActivationFunctions
 {

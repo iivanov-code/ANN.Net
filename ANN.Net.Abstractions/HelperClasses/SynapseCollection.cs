@@ -1,10 +1,10 @@
-﻿using ANN.Net.Abstractions.Interfaces;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
+using ANN.Net.Abstractions.Interfaces;
 
-namespace ANN.Net.HelperClasses
+namespace ANN.Net.Abstractions.HelperClasses
 {
-    internal class SynapseCollection<T> : ISynapseCollection<T>, ICollection<T>
+    public class SynapseCollection<T> : ISynapseCollection<T>, ICollection<T>
         where T : ISynapse
     {
         private List<T> list;

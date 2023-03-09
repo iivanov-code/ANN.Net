@@ -1,6 +1,6 @@
 ﻿using ANN.Net.Abstractions.Interfaces;
 
-namespace ANN.Net.HelperClasses
+namespace ANN.Net.Abstractions.HelperClasses
 {
     public static class SynapseExtensions
     {

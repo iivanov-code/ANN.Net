@@ -1,13 +1,13 @@
-﻿using ANN.Net.Abstractions.Enums;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.HelperClasses;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Connections;
-using ANN.Net.HelperClasses;
 using ANN.Net.Neurons;
 using ANN.Net.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace ANN.Net
 {

@@ -1,6 +1,6 @@
-﻿using ANN.Net.Abstractions.Interfaces;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.ActivationFunctions
 {
