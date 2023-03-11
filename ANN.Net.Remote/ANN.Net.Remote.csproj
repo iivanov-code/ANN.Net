@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net6.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\ANN.Net.Remote.Abstactions\ANN.Net.Remote.Abstactions.csproj" />
+        <ProjectReference Include="..\NeuralNetwork\ANN.Net.csproj" />
+    </ItemGroup>
+
+</Project>

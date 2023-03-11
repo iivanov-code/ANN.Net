@@ -2,9 +2,11 @@
 {
     public interface IActivationFunction
     {
-        float Activation(float x);
-        float Prime(float x);
-        float MinValue { get; }
-        float MaxValue { get; }
+        Quad Activation(ref Quad x);
+
+        Quad Derivative(Quad x);
+
+        Quad MinValue { get; }
+        Quad MaxValue { get; }
     }
 }

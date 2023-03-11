@@ -3,10 +3,11 @@
 namespace ANN.Net.Abstractions.Enums
 {
     [Serializable]
-    internal enum NodeType : byte
+    public enum NodeType : byte
     {
         INPUT = 0,
         HIDDEN = 1,
-        OUTPUT = 2
+        OUTPUT = 2,
+        BIAS = 3
     }
 }

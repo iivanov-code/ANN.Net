@@ -1,20 +1,22 @@
-﻿using ANN.Net.Abstractions.Enums;
-using ANN.Net.Abstractions.HelperClasses;
+﻿using System;
+using ANN.Net.Abstractions.Attributes;
+using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.ActivationFunctions
 {
+    [Serializable]
     [ActivationType(Type = ActivationTypes.RELU)]
     internal class RELUActivation : BaseActivation<RELUActivation>, IActivationFunction
     {
-        private static readonly float minValue = 0;
-        private static readonly float maxValue = 1;
+        private static readonly Quad minValue = 0;
+        private static readonly Quad maxValue = Quad.PositiveInfinity;
 
-        public float MinValue => minValue;
+        public Quad MinValue => minValue;
 
-        public float MaxValue => maxValue;
+        public Quad MaxValue => maxValue;
 
-        public float Activation(float x)
+        public Quad Activation(ref Quad x)
         {
             if (x < 0)
             {
@@ -26,7 +28,7 @@ namespace ANN.Net.ActivationFunctions
             }
         }
 
-        public float Prime(float x)
+        public Quad Derivative(Quad x)
         {
             if (x < 0)
             {
@@ -36,6 +38,11 @@ namespace ANN.Net.ActivationFunctions
             {
                 return 1;
             }
+        }
+
+        public static Quad Activate(ref Quad x)
+        {
+            return Instance.Activation(ref x);
         }
     }
 }

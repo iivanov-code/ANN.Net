@@ -1,39 +1,25 @@
 ﻿using System;
+using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Enums;
-using ANN.Net.Abstractions.HelperClasses;
-using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
 namespace ANN.Net.Neurons
 {
+    [Serializable]
     internal class InputNeuron : Neuron, IInputNeuron
     {
-        public InputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
-            : base(activationType)
-        {
-            if (recurrentInputs != 0)
-                Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+        public InputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0, uint? id = null)
+            : base(false, true, activationType, id)
+        { }
 
-            Outputs = new SynapseCollection<ISynapse>();
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
+        {
+            Outputs.AccumulateError(errorSignal);
         }
 
-        public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        public override void Propagate(NeuronPropagateEventArgs value)
         {
-            AccumulateError(errorSignal, eWeightedSignal, updateWeight);
-            Outputs.ResetCounter();
-            _error = 0;
-        }
-
-        public override void Propagate(float value)
-        {
-            _value = Function.Activation(value);
-
-            foreach (var output in Outputs)
-            {
-                output.Propagate(_value);
-            }
-
-            _lastValue = _value;
-            _value = 0;
+            ActivateNeuron(value);
         }
     }
 }

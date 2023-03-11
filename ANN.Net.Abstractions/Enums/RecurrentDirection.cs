@@ -1,5 +1,8 @@
-﻿namespace ANN.Net.Abstractions.Enums
+﻿using System;
+
+namespace ANN.Net.Abstractions.Enums
 {
+    [Flags()]
     public enum RecurrentDirection : byte
     {
         Forward = 1,

@@ -1,28 +1,34 @@
 ﻿using System;
+using ANN.Net.Abstractions.Attributes;
 using ANN.Net.Abstractions.Enums;
-using ANN.Net.Abstractions.HelperClasses;
 using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.ActivationFunctions
 {
+    [Serializable]
     [ActivationType(Type = ActivationTypes.ArcusTangens)]
     internal class ArcTanActivation : BaseActivation<ArcTanActivation>, IActivationFunction
     {
-        private static readonly float minValue = -1;
-        private static readonly float maxValue = 1;
+        private static readonly Quad minValue = -1;
+        private static readonly Quad maxValue = 1;
 
-        public float MinValue => minValue;
+        public Quad MinValue => minValue;
 
-        public float MaxValue => maxValue;
+        public Quad MaxValue => maxValue;
 
-        public float Activation(float x)
+        public Quad Activation(ref Quad x)
         {
-            return (float)Math.Atan(x);
+            return (Quad)Math.Atan(x);
         }
 
-        public float Prime(float x)
+        public Quad Derivative(Quad x)
         {
-            return (float)(1 / (Math.Pow(x, 2) + 1));
+            return (Quad)(1 / (Math.Pow(x, 2) + 1));
+        }
+
+        public static Quad Activate(ref Quad x)
+        {
+            return Instance.Activation(ref x);
         }
     }
 }

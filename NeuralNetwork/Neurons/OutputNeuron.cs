@@ -1,43 +1,41 @@
 ﻿using System;
+using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Enums;
-using ANN.Net.Abstractions.HelperClasses;
-using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
 namespace ANN.Net.Neurons
 {
+    [Serializable]
     internal class OutputNeuron : Neuron, IOutputNeuron
     {
-        public OutputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
-            : base(activationType)
+        private bool shouldActivate;
+
+        public OutputNeuron(ActivationTypes activationType, bool shouldActivate, uint? id = null)
+            : base(true, true, activationType, id)
         {
-            Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+            this.shouldActivate = shouldActivate;
         }
 
-        public float Value => _lastValue;
+        public Quad Value => this.Outputs.Value;
 
-        public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
-            _error = errorSignal;
-            _lastValue = Function.Prime(_lastValue);
-            _error = _lastValue * _error; //derivative * errorSignal
-            _lastValue = 0;
-            foreach (ISynapse input in Inputs)
-            {
-                input.Backpropagate(_error);
-            }
-            _error = 0;
+            FeedbackError(errorSignal);
         }
 
-        public override void Propagate(float value)
+        public override void Propagate(NeuronPropagateEventArgs value)
         {
-            _value += value;
-            Inputs.AccountSignal();
-            if (Inputs.CheckCountAndReset())
-            {
-                _value = Function.Activation(_value);
-                _lastValue = _value;
-                _value = 0;
-            }
+            Outputs.AccountSignal(value);
+        }
+
+        protected override void ActivateNeuron(NeuronPropagateEventArgs value)
+        {
+            base.ActivateNeuron(value);
+        }
+
+        protected override void FeedbackError(BackpropagateEventArgs value)
+        {
+            base.FeedbackError(value);
         }
     }
 }

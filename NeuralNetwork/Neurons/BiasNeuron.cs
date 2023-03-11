@@ -1,42 +1,36 @@
 ﻿using System;
-using ANN.Net.Abstractions.HelperClasses;
-using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
 namespace ANN.Net.Neurons
 {
-    internal class BiasNeuron : INeuron, IInputNeuron, IHiddenNeuron
+    [Serializable]
+    internal class BiasNeuron : Neuron, IInputNeuron, IHiddenNeuron
     {
-        public const float VALUE = 1;
+        public BiasNeuron(ActivationTypes activationType)
+             : base(true, true, activationType)
+        { }
 
-        public BiasNeuron()
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
-            Outputs = new SynapseCollection<ISynapse>();
-            Inputs = new SynapseCollection<ISynapse>();
+            Outputs.AccumulateError(errorSignal);
         }
 
-        public Guid ID => Guid.NewGuid();
-
-        public ISynapseCollection<ISynapse> Outputs { get; }
-
-        public ISynapseCollection<ISynapse> Inputs { get; }
-
-        public void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        protected override void ActivateNeuron(NeuronPropagateEventArgs value)
         {
-            Outputs.AccountSignal();
-            if (Outputs.CheckCountAndReset())
-                updateWeight(errorSignal * VALUE);
+            this.Outputs.PropagateForEach(new NeuronPropagateEventArgs(Function.MaxValue));
         }
 
-        public void Propagate(float value)
+        protected override void FeedbackError(BackpropagateEventArgs value)
         {
-            if (Inputs.Count > 0)
-                Inputs?.AccountSignal();
+            //Should not propagate it's error because it's value is fixed: 1
+            //this.Inputs.BackpropagateForEach(value);
+        }
 
-            if (Inputs.CheckCountAndReset())
-                foreach (var output in Outputs)
-                {
-                    output.Propagate(VALUE);
-                }
+        public override void Propagate(NeuronPropagateEventArgs value)
+        {
+            Inputs.AccountSignal(value);
         }
     }
 }

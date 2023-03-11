@@ -1,37 +1,44 @@
 ﻿using System;
+using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Utils;
 
 namespace ANN.Net.Neurons
 {
-    internal abstract class Neuron : INeuron
+    [Serializable]
+    internal abstract class Neuron : BaseNeuron, INeuron
     {
-        protected float _error = 0;
-        protected float _value = 0;
-        protected float _lastValue = 0;
-
-#if DEBUG
-        public Guid ID { get; } = Guid.NewGuid();
-#endif
-        public IActivationFunction Function { get; private set; }
-        public ISynapseCollection<ISynapse> Inputs { get; protected set; }
-        public ISynapseCollection<ISynapse> Outputs { get; protected set; }
-
-        public Neuron(ActivationTypes activationType)
+        public Neuron(bool initInputs, bool initOutputs, ActivationTypes activationType, uint? id = null)
+             : base(initInputs, initOutputs, id)
         {
-            Function = NetworkUtils.GetActivation(activationType);
+            this.Function = NetworkUtils.GetActivation(activationType);
         }
 
-        public abstract void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null);
+        public IActivationFunction Function { get; private set; }
 
-        public abstract void Propagate(float value);
-
-        protected void AccumulateError(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        protected override void ActivateNeuron(NeuronPropagateEventArgs value)
         {
-            _error += eWeightedSignal; //Sum
-            updateWeight(errorSignal * _lastValue);
-            Outputs.AccountSignal();
+            if (value.ShouldActivate)
+            {
+                Quad activationValue = value.Value;
+                activationValue = Function.Activation(ref activationValue);
+                value.Value = activationValue;
+            }
+
+            this.Outputs.PropagateForEach(value);
+        }
+
+        protected override void FeedbackError(BackpropagateEventArgs errorSignal)
+        {
+            if (errorSignal.ShouldActivate)
+                Outputs.Value = Function.Derivative(Outputs.Value);
+
+            errorSignal.ErrorSignal = Outputs.Value * Inputs.Value; //derivative * errorSignal
+            Inputs.BackpropagateForEach(errorSignal);
+            Inputs.ClearValue();
+            Outputs.ClearValue();
         }
     }
 }

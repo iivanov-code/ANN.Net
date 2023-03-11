@@ -1,15 +1,10 @@
-﻿using System.ComponentModel;
-using ANN.Net.Abstractions.Enums;
+﻿using ANN.Net.Abstractions.Enums;
 
 namespace ANN.Net.Abstractions.Settings
 {
-    public class HiddenLayerSettings
+    public class HiddenLayerSettings : CommonLayerSettings
     {
         public ushort LayersCount { get; set; }
-        public ushort NeuronsCount { get; set; }
-        public bool HasBiasNeuron { get; set; }
-
-        [DefaultValue(ActivationTypes.Sigmoid)]
-        public ActivationTypes FunctionType { get; set; }
+        public LayerConnectionType PrevLayerConnectionType { get; set; }
     }
 }

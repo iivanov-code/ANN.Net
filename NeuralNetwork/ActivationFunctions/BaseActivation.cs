@@ -4,8 +4,9 @@ using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.ActivationFunctions
 {
+    [Serializable]
     internal abstract class BaseActivation<T>
-        where T : class, IActivationFunction, new()
+         where T : class, IActivationFunction, new()
     {
         static BaseActivation()
         {
@@ -26,7 +27,5 @@ namespace ANN.Net.ActivationFunctions
                 return instance[typeof(T)] as T;
             }
         }
-
-
     }
 }

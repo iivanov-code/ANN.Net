@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
+using ANN.Net.Abstractions.Interfaces.Synapses;
 using ANN.Net.Neurons;
 
 namespace ANN.Net.Utils
@@ -11,10 +13,11 @@ namespace ANN.Net.Utils
     {
         public const int X_OFFSET = 5;
         public const int Y_OFFSET = 5;
-#if DEBUG
+
         public static NetworkDrawing GetDrawing(this INetwork network, float width = 1920, float height = 1080)
         {
             Network net = (Network)network;
+
             BaseNetworkDrawing drawing = new NetworkDrawing();
 
             int layersCount = net.HiddenLayers.Count + 2;
@@ -41,15 +44,7 @@ namespace ANN.Net.Utils
 
             return drawing as NetworkDrawing;
         }
-#else
-        public static NetworkDrawing GetDrawing(this INetwork network, float width = 1920, float height = 1080)
-        {
-            throw new NotImplementedException("CAN NOT DRAW IMAGE IN RELEASE MODE");
-        }
-#endif
 
-
-#if DEBUG
         private static void AddLayerNodes(BaseNetworkDrawing drawing, IEnumerable<INeuron> neurons, int x, int maxNeuronsCount, Size circleSize)
         {
             int y = Y_OFFSET;
@@ -72,7 +67,7 @@ namespace ANN.Net.Utils
                 {
                     foreach (ISynapse connection in neuron.Outputs)
                     {
-                        var line = new Line(neuron.ID, connection.Output.ID, connection.Weight)
+                        var line = new Line(neuron.ID, connection.Output.ID, 0)
                         {
                             From = nodeCenterPoint
                         };
@@ -95,13 +90,13 @@ namespace ANN.Net.Utils
                 y += cellHeight * 2;
             }
         }
-#endif
-
     }
 
     public class NetworkDrawing : BaseNetworkDrawing
     {
-        internal NetworkDrawing() : base() { }
+        internal NetworkDrawing() : base()
+        {
+        }
 
         public new IEnumerable<Rectangle> NodeCircles
         {
@@ -124,8 +119,8 @@ namespace ANN.Net.Utils
     {
         public BaseNetworkDrawing()
         {
-            Connections = new Dictionary<LineKey, ILine>();
-            NodeCircles = new HashSet<INode>();
+            this.Connections = new Dictionary<LineKey, ILine>();
+            this.NodeCircles = new HashSet<INode>();
         }
 
         public HashSet<INode> NodeCircles { get; set; }
@@ -139,13 +134,13 @@ namespace ANN.Net.Utils
 
     public class Node : INode
     {
-        public Node(Guid id, Rectangle circle)
+        public Node(uint id, Rectangle circle)
         {
-            ID = id;
-            Circle = circle;
+            this.ID = id;
+            this.Circle = circle;
         }
 
-        public Guid ID { get; set; }
+        public uint ID { get; set; }
         public Rectangle Circle { get; set; }
     }
 
@@ -153,19 +148,19 @@ namespace ANN.Net.Utils
     {
         Point From { get; }
         Point To { get; set; }
-        float Weight { get; }
+        double Weight { get; }
     }
 
     public class LineKey : IEquatable<LineKey>
     {
-        public LineKey(Guid fromId, Guid toId)
+        public LineKey(uint fromId, uint toId)
         {
-            FromID = fromId;
-            ToID = toId;
+            this.FromID = fromId;
+            this.ToID = toId;
         }
 
-        public Guid FromID { get; set; }
-        public Guid ToID { get; set; }
+        public uint FromID { get; set; }
+        public uint ToID { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -174,26 +169,25 @@ namespace ANN.Net.Utils
 
         public bool Equals(LineKey other)
         {
-            return GetHashCode() == other.GetHashCode();
+            return this.GetHashCode() == other.GetHashCode();
         }
 
         public override int GetHashCode()
         {
-            return FromID.GetHashCode() ^ ToID.GetHashCode();
+            return this.FromID.GetHashCode() ^ this.ToID.GetHashCode();
         }
-
     }
 
     public class Line : LineKey, ILine
     {
-        public Line(Guid fromID, Guid toID, float weight)
+        public Line(uint fromID, uint toID, double weight)
             : base(fromID, toID)
         {
-            Weight = weight;
+            this.Weight = weight;
         }
 
         public Point From { get; set; }
         public Point To { get; set; }
-        public float Weight { get; set; }
+        public double Weight { get; set; }
     }
 }

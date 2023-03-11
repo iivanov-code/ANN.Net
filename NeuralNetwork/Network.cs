@@ -1,239 +1,106 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using ANN.Net.Abstractions.Enums;
-using ANN.Net.Abstractions.HelperClasses;
+using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
+using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
-using ANN.Net.Connections;
 using ANN.Net.Neurons;
 using ANN.Net.Utils;
 
 namespace ANN.Net
 {
-    internal class Network : INetwork
+    [Serializable]
+    internal sealed class Network : ANNetwork, INetwork
     {
-        public readonly float MinValue, MaxValue;
+        public IReadOnlyList<Tuple<Quad, Quad>> MinMaxValues { get; }
 
-        private bool ShouldNormalize;
+        private readonly bool shouldNormalize;
+        private readonly bool applySoftMax;
+        public ILayer<IInputNeuron> InputNeurons;
+        public ICollection<ILayer<IHiddenNeuron>> HiddenLayers;
+        public ILayer<IOutputNeuron> OutputNeurons;
+        public ICollection<LearningRateOptimizer> Optimizers { get; }
 
-        protected readonly internal IReadOnlyList<IInputNeuron> InputNeurons;
-        protected internal ICollection<ICollection<IHiddenNeuron>> HiddenLayers;
-        protected readonly internal IReadOnlyList<IOutputNeuron> OutputNeurons;
+        private ILossFunction lossFunction;
 
         public Network(NetworkSettings settings)
         {
-            MinValue = settings.MinNetworkValue;
-            MaxValue = settings.MaxNetworkValue;
-            ShouldNormalize = settings.ShouldNormalize;
-            InputNeurons = new List<IInputNeuron>();
-            OutputNeurons = new List<IOutputNeuron>();
+            this.MinMaxValues = settings.MinMaxValues;
+            this.shouldNormalize = settings.ShouldNormalize;
+            this.Errors = new Quad[settings.OutputSettings.NeuronsCount];
+            this.applySoftMax = settings.OutputApplySoftMax;
+            this.Optimizers = new List<LearningRateOptimizer>();
+            this.lossFunction = NetworkUtils.GetLossFunction(settings.LossType);
         }
 
-        internal virtual IList<ICollection<IHiddenNeuron>> BuildHiddenLayers(IEnumerable<INeuron> previousLayer, HiddenLayerSettings settings, ushort recurrentInputs = 0)
-        {
-            var tempLayer = new List<ICollection<IHiddenNeuron>>(settings.LayersCount);
-
-            IEnumerable<INeuron> prevLayer = previousLayer;
-
-            for (int i = 0; i < settings.LayersCount; i++)
-            {
-                var tempHidden = new List<IHiddenNeuron>(settings.NeuronsCount);
-                for (int j = 0; j < settings.NeuronsCount; j++)
-                {
-                    var neuron = new HiddenNeuron(settings.FunctionType, recurrentInputs);
-                    tempHidden.Add(neuron);
-                    foreach (var inNeuron in prevLayer)
-                    {
-                        ConnectAxon(inNeuron, neuron, settings.NeuronsCount);
-                    }
-                }
-
-                if (settings.HasBiasNeuron)
-                {
-                    var biasNeuron = new BiasNeuron();
-
-                    tempHidden.Add(biasNeuron);
-
-                    foreach (var inNeuron in previousLayer)
-                    {
-                        ConnectAxon(inNeuron, biasNeuron, settings.NeuronsCount);
-                    }
-                }
-                prevLayer = tempHidden;
-                tempLayer.Add(tempHidden);
-            }
-
-            return tempLayer;
-        }
-
-        internal IList<ICollection<ILSTMCell>> BuildLSTMCells(IEnumerable<INeuron> prevLayer, CellLayerSettings settings)
-        {
-            var tempLayers = new List<ICollection<ILSTMCell>>(settings.LayersCount);
-
-            ushort recurrentInputs = (ushort)(settings.HasSelfConnection ? 1 : 0);
-
-            for (int i = 0; i < settings.LayersCount; i++)
-            {
-                var tempHidden = new List<ILSTMCell>(settings.NeuronsCount);
-                for (int j = 0; j < settings.NeuronsCount; j++)
-                {
-                    ushort rn = (ushort)(recurrentInputs + (settings.Direction == RecurrentDirection.Both ? settings.NeuronsCount : j));
-                    var neuron = new LSTMCell(settings.FunctionType, rn);
-
-                    foreach (var inNeuron in prevLayer)
-                    {
-                        ConnectAxon(inNeuron, neuron, settings.NeuronsCount);
-                    }
-                    tempHidden.Add(neuron);
-                }
-
-                if (settings.Direction == RecurrentDirection.Forward || settings.Direction == RecurrentDirection.Both)
-                {
-                    for (int k = 0; k < settings.NeuronsCount; k += 2)
-                    {
-                        if (k + 1 < settings.NeuronsCount)
-                            ConnectRecurrentAxon(tempHidden[k], tempHidden[k + 1], settings.HasSelfConnection);
-                    }
-                }
-
-                if (settings.Direction == RecurrentDirection.Backward || settings.Direction == RecurrentDirection.Both)
-                {
-                    for (int k = settings.NeuronsCount - 1; k >= 0; k -= 2)
-                    {
-                        if (k - 1 < settings.NeuronsCount)
-                            ConnectRecurrentAxon(tempHidden[k], tempHidden[k - 1], settings.HasSelfConnection);
-                    }
-                }
-            }
-            return tempLayers;
-        }
-
-        private void ConnectRecurrentAxon(ILSTMCell first, ILSTMCell second, bool selfConnection)
-        {
-            var axon = new RecurrentSynapse(first, second, RandomWeight());
-            (first.Outputs as SynapseCollection<ISynapse>).Add(axon);
-            (second.Inputs as SynapseCollection<ISynapse>).Add(axon);
-        }
-
-        internal IEnumerable<IInputNeuron> BuildInputNeurons(NetworkSettings settings, ushort recurrentInputs = 0)
-        {
-            var tempInputNeurons = new List<IInputNeuron>(settings.InputNeuronsCount);
-
-            for (int i = 0; i < settings.InputNeuronsCount; i++)
-            {
-                tempInputNeurons.Add(new InputNeuron(settings.InputLayerFunction, recurrentInputs));
-            }
-
-            if (settings.HasBiasNeuron)
-                tempInputNeurons.Add(new BiasNeuron());
-
-            ((List<IInputNeuron>)InputNeurons).AddRange(tempInputNeurons);
-            return tempInputNeurons;
-        }
-
-        internal IEnumerable<IOutputNeuron> BuildOutputNeurons(IEnumerable<INeuron> prevLayer, ushort count, ActivationTypes type)
-        {
-            var tempOutputLayer = new List<IOutputNeuron>(count);
-
-            for (int i = 0; i < count; i++)
-            {
-                var neuron = new OutputNeuron(type);
-                tempOutputLayer.Add(neuron);
-                foreach (var inNeuron in prevLayer)
-                {
-                    ConnectAxon(inNeuron, neuron, count);
-                }
-            }
-
-            ((List<IOutputNeuron>)OutputNeurons).AddRange(tempOutputLayer);
-            return tempOutputLayer;
-        }
-
-        public float[] Values
+        public Quad[] Values
         {
             get
             {
-                return OutputNeurons.Select(x => x.Value).ToArray();
+                if (applySoftMax)
+                {
+                    Quad sum = OutputNeurons.Sum(x => x.Value);
+                    return OutputNeurons.Select(x => x.Value / sum).ToArray();
+                }
+                else
+                {
+                    return OutputNeurons.Select(x => x.Value).ToArray();
+                }
             }
         }
 
-        public float[] Propagate(float[] values)
+        public Quad[] Errors { get; }
+
+        public Quad[] Propagate(Quad[] values)
         {
-            //if (ShouldNormalize)
-            //{
-            //    float[] normalizedValues = new float[values.Length];
-            //    for (int i = 0; i < values.Length; i++)
-            //    {
-            //        normalizedValues[i] = NetworkUtils.Normalize(values[i], MinValue, MaxValue);
-            //    }
-            //    values = normalizedValues;
-            //}
+            if (shouldNormalize)
+            {
+                Quad[] normalizedValues = new Quad[values.Length];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    normalizedValues[i] = NetworkUtils.Normalize(values[i], MinMaxValues[i].Item1, MinMaxValues[i].Item2);
+                }
+                values = normalizedValues;
+            }
 
             for (int i = 0; i < values.Length; i++)
             {
-                InputNeurons[i].Propagate(values[i]);
+                InputNeurons[i].Propagate(new NeuronPropagateEventArgs(values[i]));
             }
 
-            if (InputNeurons.Count > values.Length)
+            if (InputNeurons.Count > values.Length && InputNeurons[values.Length] is BiasNeuron)
             {
-                InputNeurons[values.Length].Propagate(1);
+                InputNeurons[values.Length].Propagate(new NeuronPropagateEventArgs(Quad.MaxValue));
             }
 
             return Values;
         }
 
-        public float GetNormalizedValue(float value)
+        public Quad Backpropagate(Quad[] targets)
         {
-            return NetworkUtils.UnNormalize(value, MinValue, MaxValue);
-        }
+            if (shouldNormalize)
+            {
+                Quad[] normalizedValues = new Quad[targets.Length];
+                for (int i = 0; i < targets.Length; i++)
+                {
+                    normalizedValues[i] = NetworkUtils.Normalize(targets[i], MinMaxValues[i].Item1, MinMaxValues[i].Item2);
+                }
+                targets = normalizedValues;
+            }
 
-
-        public float Backpropagate(float[] targets)
-        {
-            //if (ShouldNormalize)
-            //{
-            //    float[] normalizedValues = new float[targets.Length];
-            //    for (int i = 0; i < targets.Length; i++)
-            //    {
-            //        normalizedValues[i] = NetworkUtils.Normalize(targets[i], MinValue, MaxValue);
-            //    }
-            //    targets = normalizedValues;
-            //}
-
-            float totalError = 0;
-
+            Quad totalError = 0;
+            Quad[] values = OutputNeurons.Select(x => x.Value).ToArray();
             for (int i = 0; i < targets.Length; i++)
             {
-                float error = MeanSquaredError(targets[i], Values[i]);
-                OutputNeurons[i].Backpropagate(error);
+                Quad error = this.lossFunction.CalculateLoss(targets[i], values[i]);
+                this.Errors[i] = error;
+                OutputNeurons[i].Backpropagate(new BackpropagateEventArgs(error));
                 totalError += error;
             }
 
             return totalError;
-        }
-
-        private static float MeanSquaredError(float target, float predicted)
-        {
-            return (float)Math.Pow(predicted - target, 2) / 2f;
-            //return predicted - target;
-        }
-
-        public void ConnectAxon(INeuron input, INeuron output, int neuronsCount)
-        {
-            var axon = new Synapse(input, output, XavierWeight(neuronsCount));
-            (output.Inputs as SynapseCollection<ISynapse>).Add(axon);
-            (input.Outputs as SynapseCollection<ISynapse>).Add(axon);
-        }
-
-        private static float RandomWeight()
-        {
-            return NetworkUtils.GetRandomNumber(0, 1);
-        }
-
-        private static float XavierWeight(int neuronCount)
-        {
-            return 1 / NetworkUtils.GetRandomNumber(1, neuronCount) + NetworkUtils.GetRandomNumber(0.001f, 0.009f, 4);
         }
     }
 }

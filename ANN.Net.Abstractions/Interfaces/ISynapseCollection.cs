@@ -2,12 +2,14 @@
 
 namespace ANN.Net.Abstractions.Interfaces
 {
-    public interface ISynapseCollection<T> : IReadOnlyCollection<T>
+    public interface ISynapseCollection<T> : IEnumerable<T>
     {
-        ushort ActivatedCount { get; }
-        bool CheckCountAndReset();
-        void ResetCounter();
-        void AccountSignal();
-        bool Zeroed();
+        Quad Value { get; set; }
+
+        void Add(T axon);
+
+        void AddRecurrent(T axon);
+
+        void ClearValue();
     }
 }

@@ -14,6 +14,14 @@ namespace ANN.Net.Abstractions.Enums
         LeakyRELU = 6,
         ParametricRELU = 7,
         SoftMax = 8,
-        SWISH = 9
+        SWISH = 9,
+        BinaryRELU = 10,
+        BinaryStep = 11,
+        BReLU = 12,
+        Gaussian = 13,
+        ISRU = 14,
+        Sinusoid = 15,
+        SoftSign = 16,
+        SQNL = 17
     }
 }
