@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.Abstractions.Settings
 {
@@ -16,5 +17,6 @@ namespace ANN.Net.Abstractions.Settings
         public OutputLayerSettings OutputSettings { get; set; }
 
         public bool OutputApplySoftMax { get; set; }
+        public IUniqueIdentityGenerator IdentityGenerator { get; set; }
     }
 }

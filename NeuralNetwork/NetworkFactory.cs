@@ -24,6 +24,7 @@ namespace ANN.Net
             if (hiddenSettings != null)
             {
                 ffn.HiddenLayers = builder.BuildHiddenLayers(ffn.InputNeurons.AsLayerOf<INeuron>(),
+                                                             settings.IdentityGenerator,
                                                              hiddenSettings,
                                                              ffn.Optimizers);
                 prevLayer = ffn.HiddenLayers.Last().AsLayerOf<INeuron>();
@@ -37,9 +38,10 @@ namespace ANN.Net
                 prevLayer = new Layer<INeuron>(prevLayer.Concat(additionalInputs));
 
             ffn.OutputNeurons = builder.BuildOutputNeurons(prevLayer,
-                                                         settings.OutputSettings,
-                                                         !settings.OutputApplySoftMax,
-                                                         ffn.Optimizers);
+                                                           settings.IdentityGenerator,
+                                                           settings.OutputSettings,
+                                                           !settings.OutputApplySoftMax,
+                                                           ffn.Optimizers);
             return ffn;
         }
 

@@ -1,4 +1,5 @@
 ﻿using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Connections;
 using ANN.Net.Remote.Abstactions.Interfaces;
@@ -7,8 +8,8 @@ namespace ANN.Net.Remote
 {
     public abstract class RemoteSynapse : BaseSynapse, IRemoteSynapse
     {
-        protected RemoteSynapse(INeuron input, INeuron output)
-            : base(input, output)
+        protected RemoteSynapse(INeuron input, INeuron output, IUniqueIdentityGenerator identityGenerator)
+            : base(input, output, identityGenerator)
         {
         }
 

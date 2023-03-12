@@ -7,10 +7,21 @@ namespace ANN.Net.Connections
 {
     public abstract class BaseSynapse
     {
-        public BaseSynapse(INeuron input, INeuron output)
+        public BaseSynapse(INeuron input, INeuron output, IUniqueIdentityGenerator idGenerator)
         {
+            this.Id = idGenerator.GenerateUniqueIdentity();
             this.Input = input;
             this.Output = output;
+
+            if (output != null)
+            {
+                PropagateConnection = output.Propagate;
+            }
+
+            if (input != null)
+            {
+                BackpropagateConnection = input.Backpropagate;
+            }
         }
 
 
@@ -19,6 +30,7 @@ namespace ANN.Net.Connections
 
         protected IOptimizer optimizer;
 
+        public string Id { get; set; }
         public Quad Weight { get; protected set; }
         public INeuron Input { get; protected set; }
         public INeuron Output { get; protected set; }

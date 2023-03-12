@@ -9,12 +9,10 @@ namespace ANN.Net.Connections
     [Serializable]
     internal class ActiveSynapse : BaseSynapse, ISynapse
     {
-        public ActiveSynapse(INeuron input, INeuron output, IOptimizer optimizer, Quad weight)
-             : base(input, output)
+        public ActiveSynapse(INeuron input, INeuron output, IUniqueIdentityGenerator identityGenerator, IOptimizer optimizer, Quad weight)
+             : base(input, output, identityGenerator)
         {
             Weight = weight;
-            PropagateConnection = output.Propagate;
-            BackpropagateConnection = input.Backpropagate;
             this.optimizer = optimizer;
         }
 

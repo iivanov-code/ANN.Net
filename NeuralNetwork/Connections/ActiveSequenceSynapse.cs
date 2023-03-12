@@ -1,4 +1,5 @@
 ﻿using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Interfaces.Synapses;
 
@@ -19,8 +20,8 @@ namespace ANN.Net.Connections
             }
         }
 
-        public ActiveSequenceSynapse(INeuron input, INeuron output, ushort count)
-             : base(input, output)
+        public ActiveSequenceSynapse(INeuron input, INeuron output, IUniqueIdentityGenerator identityGenerator, ushort count)
+             : base(input, output, identityGenerator)
         {
             values = new Quad[count];
         }

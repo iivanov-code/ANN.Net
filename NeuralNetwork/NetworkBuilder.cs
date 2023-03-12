@@ -23,12 +23,15 @@ namespace ANN.Net
             return new NetworkBuilder();
         }
 
-        public IList<ILayer<IHiddenNeuron>> BuildHiddenLayers(ILayer<INeuron> prevLayer, RecurrentLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
+        public IList<ILayer<IHiddenNeuron>> BuildHiddenLayers(ILayer<INeuron> prevLayer, IUniqueIdentityGenerator identityGenerator, RecurrentLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
         {
-            return BuildHiddenLayers(prevLayer, new RecurrentLayerSettings[] { settings }, optimizers);
+            return BuildHiddenLayers(prevLayer, identityGenerator, new RecurrentLayerSettings[] { settings }, optimizers);
         }
 
-        public IList<ILayer<IHiddenNeuron>> BuildHiddenLayers(ILayer<INeuron> prevLayer, RecurrentLayerSettings[] settings, ICollection<LearningRateOptimizer> optimizers)
+        public IList<ILayer<IHiddenNeuron>> BuildHiddenLayers(ILayer<INeuron> prevLayer,
+                                                              IUniqueIdentityGenerator identityGenerator,
+                                                              RecurrentLayerSettings[] settings,
+                                                              ICollection<LearningRateOptimizer> optimizers)
         {
             if (optimizers == null) throw new ArgumentNullException(nameof(optimizers));
 
@@ -67,19 +70,19 @@ namespace ANN.Net
                     switch (layerSettings.PrevLayerConnectionType)
                     {
                         case LayerConnectionType.FullyConnected:
-                            newLayer = FullyConnectLayers<IHiddenNeuron>(prevLayer, layerSettings, optimizers, () => neuronConstructor(layerSettings));
+                            newLayer = FullyConnectLayers<IHiddenNeuron>(prevLayer, identityGenerator, layerSettings, optimizers, () => neuronConstructor(layerSettings));
                             break;
 
                         case LayerConnectionType.Convolutional:
-                            newLayer = ConvolutionalConnectLayers<IHiddenNeuron>(prevLayer, layerSettings, optimizers, () => neuronConstructor(layerSettings));
+                            newLayer = ConvolutionalConnectLayers<IHiddenNeuron>(prevLayer, identityGenerator, layerSettings, optimizers, () => neuronConstructor(layerSettings));
                             break;
 
                         case LayerConnectionType.Deconvolutional:
-                            newLayer = DeconvolutionalConnectLayers<IHiddenNeuron>(prevLayer, layerSettings, optimizers, () => neuronConstructor(layerSettings));
+                            newLayer = DeconvolutionalConnectLayers<IHiddenNeuron>(prevLayer, identityGenerator, layerSettings, optimizers, () => neuronConstructor(layerSettings));
                             break;
 
                         case LayerConnectionType.Straight:
-                            newLayer = StraightConnectLayer<IHiddenNeuron>(prevLayer, layerSettings, optimizers, () => neuronConstructor(layerSettings));
+                            newLayer = StraightConnectLayer<IHiddenNeuron>(prevLayer, identityGenerator, layerSettings, optimizers, () => neuronConstructor(layerSettings));
                             break;
 
                         default:
@@ -88,7 +91,7 @@ namespace ANN.Net
 
                     if (layerSettings.CellType != NeuronType.Normal)
                     {
-                        RecurrentConnectLayer<IHiddenNeuron>(newLayer, layerSettings, optimizers);
+                        RecurrentConnectLayer<IHiddenNeuron>(newLayer, identityGenerator, layerSettings, optimizers);
                     }
 
                     listOfLayers.Add(newLayer);
@@ -115,11 +118,12 @@ namespace ANN.Net
         }
 
         public ILayer<IOutputNeuron> BuildOutputNeurons(IEnumerable<INeuron> prevLayer,
+                                                        IUniqueIdentityGenerator identityGenerator,
                                                         OutputLayerSettings settings,
                                                         bool shouldActivate,
                                                         ICollection<LearningRateOptimizer> optimizers)
         {
-            return FullyConnectLayers<IOutputNeuron>(prevLayer, settings, optimizers, () => new OutputNeuron(settings.ActivationType, shouldActivate));
+            return FullyConnectLayers<IOutputNeuron>(prevLayer, identityGenerator, settings, optimizers, () => new OutputNeuron(settings.ActivationType, shouldActivate));
         }
 
         public IInputNeuron BuildInputNeuron(ActivationTypes activationType, uint id)
@@ -139,6 +143,7 @@ namespace ANN.Net
 
         public IOptimizer ConnectAxon(INeuron input,
                                       INeuron output,
+                                      IUniqueIdentityGenerator identityGenerator,
                                       CommonLayerSettings settings,
                                       ICollection<LearningRateOptimizer> optimizers,
                                       bool isConnectionActive = true,
@@ -169,11 +174,11 @@ namespace ANN.Net
             ISynapse axon;
             if (isConnectionActive)
             {
-                axon = new ActiveSynapse(input, output, optimizer, initialWeight);
+                axon = new ActiveSynapse(input, output, identityGenerator, optimizer, initialWeight);
             }
             else
             {
-                axon = new InactiveSynapse(input, output);
+                axon = new InactiveSynapse(input, output, identityGenerator);
             }
 
             if (recurrentConnection)
@@ -190,7 +195,11 @@ namespace ANN.Net
             return optimizer;
         }
 
-        private ILayer<T> ConvolutionalConnectLayers<T>(ILayer<INeuron> prevLayer, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers, Func<T> neuronConstructor)
+        private ILayer<T> ConvolutionalConnectLayers<T>(ILayer<INeuron> prevLayer,
+                                                        IUniqueIdentityGenerator identityGenerator,
+                                                        CommonLayerSettings settings,
+                                                        ICollection<LearningRateOptimizer> optimizers,
+                                                        Func<T> neuronConstructor)
                        where T : class, INeuron
         {
             var layer = new Layer<T>(prevLayer.Count - 1);
@@ -202,17 +211,18 @@ namespace ANN.Net
 
                 for (int j = i - 1; j < i + 1; j++)
                 {
-                    ConnectAxon(prevLayer[i], neuron, settings, optimizers);
+                    ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
                 }
             }
 
-            ConnectAxon(prevLayer[0], layer[0], settings, optimizers);
-            ConnectAxon(prevLayer[prevLayer.Count - 1], layer[layer.Count - 1], settings, optimizers);
+            ConnectAxon(prevLayer[0], layer[0], identityGenerator, settings, optimizers);
+            ConnectAxon(prevLayer[prevLayer.Count - 1], layer[layer.Count - 1], identityGenerator, settings, optimizers);
 
             return layer;
         }
 
         private ILayer<T> DeconvolutionalConnectLayers<T>(ILayer<INeuron> prevLayer,
+                                                          IUniqueIdentityGenerator identityGenerator,
                                                           CommonLayerSettings settings,
                                                           ICollection<LearningRateOptimizer> optimizers,
                                                           Func<T> neuronConstructor)
@@ -227,7 +237,7 @@ namespace ANN.Net
 
                 for (int j = i; j < i + 2; j++)
                 {
-                    ConnectAxon(prevLayer[i], neuron, settings, optimizers);
+                    ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
                 }
             }
 
@@ -235,6 +245,7 @@ namespace ANN.Net
         }
 
         private ILayer<T> StraightConnectLayer<T>(ILayer<INeuron> prevLayer,
+                                                  IUniqueIdentityGenerator identityGenerator,
                                                   CommonLayerSettings settings,
                                                   ICollection<LearningRateOptimizer> optimizers,
                                                   Func<T> neuronConstructor)
@@ -249,13 +260,13 @@ namespace ANN.Net
             {
                 var neuron = neuronConstructor();
                 layer.Add(neuron);
-                ConnectAxon(prevLayer[i], neuron, settings, optimizers);
+                ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
             }
 
             return layer;
         }
 
-        private ILayer<T> FullyConnectLayers<T>(IEnumerable<INeuron> prevLayer, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers, Func<T> neuronConstructor)
+        private ILayer<T> FullyConnectLayers<T>(IEnumerable<INeuron> prevLayer, IUniqueIdentityGenerator identityGenerator, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers, Func<T> neuronConstructor)
              where T : class, INeuron
         {
             var layer = new Layer<T>(settings.NeuronsCount);
@@ -266,7 +277,7 @@ namespace ANN.Net
                 layer.Add(neuron);
                 foreach (var inNeuron in prevLayer)
                 {
-                    ConnectAxon(inNeuron, neuron, settings, optimizers);
+                    ConnectAxon(inNeuron, neuron, identityGenerator, settings, optimizers);
                 }
             }
 
@@ -276,7 +287,7 @@ namespace ANN.Net
             return layer;
         }
 
-        private void RecurrentConnectLayer<T>(ILayer<T> layer, RecurrentLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
+        private void RecurrentConnectLayer<T>(ILayer<T> layer, IUniqueIdentityGenerator identityGenerator, RecurrentLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
                                              where T : class, INeuron
         {
             if (layer == null || layer.Count == 0)
@@ -290,17 +301,17 @@ namespace ANN.Net
                     {
                         for (int j = i + 1; j < layer.Count - 2; j++)
                         {
-                            ConnectAxon(layer[i], layer[j], settings, optimizers, true);
+                            ConnectAxon(layer[i], layer[j], identityGenerator, settings, optimizers, true);
                         }
                     }
                     else
                     {
-                        ConnectAxon(layer[i], layer[i + 1], settings, optimizers, true);
+                        ConnectAxon(layer[i], layer[i + 1], identityGenerator, settings, optimizers, true);
                     }
 
                     if (settings.HasSelfConnection)
                     {
-                        ConnectAxon(layer[i], layer[i], settings, optimizers, true);
+                        ConnectAxon(layer[i], layer[i], identityGenerator, settings, optimizers, true);
                     }
                 }
             }
@@ -313,17 +324,17 @@ namespace ANN.Net
                     {
                         for (int j = i - 1; j >= 0; j++)
                         {
-                            ConnectAxon(layer[i], layer[j], settings, optimizers, true);
+                            ConnectAxon(layer[i], layer[j], identityGenerator, settings, optimizers, true);
                         }
                     }
                     else
                     {
-                        ConnectAxon(layer[i], layer[i - 1], settings, optimizers, true);
+                        ConnectAxon(layer[i], layer[i - 1], identityGenerator, settings, optimizers, true);
                     }
 
                     if (settings.HasSelfConnection && (settings.Direction & RecurrentDirection.Forward) != RecurrentDirection.Forward)
                     {
-                        ConnectAxon(layer[i], layer[i], settings, optimizers, true);
+                        ConnectAxon(layer[i], layer[i], identityGenerator, settings, optimizers, true);
                     }
                 }
             }
