@@ -4,6 +4,7 @@ using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.ActivationFunctions;
 using ANN.Net.LossFunctions;
+using ANN.Net.LossFunctions.RegressionLosses;
 using ANN.Net.Neurons;
 using ANN.Net.Optimizers;
 
@@ -83,7 +84,7 @@ namespace ANN.Net.Utils
                 case RELUActivation _:
                     return ActivationTypes.RELU;
 
-                case SigmoidActivation _:
+                case HardSigmoidActivation _:
                     return ActivationTypes.Sigmoid;
 
                 case TanHActivation _:
@@ -125,7 +126,7 @@ namespace ANN.Net.Utils
             switch (type)
             {
                 case ActivationTypes.Sigmoid:
-                    return SigmoidActivation.Instance;
+                    return HardSigmoidActivation.Instance;
 
                 case ActivationTypes.HyperbolicTangens:
                     return TanHActivation.Instance;
@@ -221,7 +222,7 @@ namespace ANN.Net.Utils
                     return HingeLossFunction.Instance;
 
                 case LossFunctionTypes.PseudoHuber:
-                    return new PseudoHuberLossFunction(alpha);
+                    return new HuberLossFunction(alpha);
 
                 case LossFunctionTypes.Difference:
                     return DifferenceLossFunction.Instance;

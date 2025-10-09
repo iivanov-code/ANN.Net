@@ -22,6 +22,11 @@ namespace ANN.Net.Abstractions.Enums
         ISRU = 14,
         Sinusoid = 15,
         SoftSign = 16,
-        SQNL = 17
+        SQNL = 17,
+        HardSigmoid = 18,
+        TanHShrink = 19,
+        SoftShrink = 20,
+        HardShrink = 21,
+        GELU = 22
     }
 }

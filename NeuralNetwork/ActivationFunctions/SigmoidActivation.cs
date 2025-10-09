@@ -7,7 +7,7 @@ namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
     [ActivationType(Type = ActivationTypes.Sigmoid)]
-    internal class SigmoidActivation : BaseActivation<SigmoidActivation>, IActivationFunction
+    internal class HardSigmoidActivation : BaseActivation<HardSigmoidActivation>, IActivationFunction
     {
         private static readonly Quad minValue = 0;
         private static readonly Quad maxValue = 1;

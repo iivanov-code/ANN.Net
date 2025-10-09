@@ -6,8 +6,8 @@ using ANN.Net.Abstractions.Interfaces;
 namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
-    [ActivationType(Type = ActivationTypes.HyperbolicTangens)]
-    internal class TanHActivation : BaseActivation<HardSigmoidActivation>, IActivationFunction
+    [ActivationType(Type = ActivationTypes.TanHShrink)]
+    internal class TanHShrinkActivation : BaseActivation<TanHShrinkActivation>, IActivationFunction
     {
         private static readonly Quad minValue = -1;
         private static readonly Quad maxValue = 1;
@@ -18,19 +18,13 @@ namespace ANN.Net.ActivationFunctions
 
         public Quad Activation(ref Quad x)
         {
-            x = (Quad)Math.Tanh(x);
+            x = x - (Quad)Math.Tanh(x);
             return x;
         }
 
         public Quad Derivative(Quad x)
         {
-            //De
-            return (Quad)(1 - Math.Pow(x, 2));
-        }
-
-        public static Quad Activate(ref Quad x)
-        {
-            return Instance.Activation(ref x);
+            return (Quad)(1 - Math.Pow(Math.Tanh(x), 2));
         }
     }
 }

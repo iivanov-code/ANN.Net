@@ -1,6 +1,6 @@
 ﻿namespace ANN.Net.Abstractions.Interfaces.Neurons
 {
-    public interface ILSTMCell : IHiddenNeuron
+    public interface IGRUCell : IHiddenNeuron
     {
     }
 }

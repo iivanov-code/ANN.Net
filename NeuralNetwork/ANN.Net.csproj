@@ -8,4 +8,8 @@
         <ProjectReference Include="..\ANN.Net.Abstractions\ANN.Net.Abstractions.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="LossFunctions\ReinforsementLosses\" />
+    </ItemGroup>
+
 </Project>

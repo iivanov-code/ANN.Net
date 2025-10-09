@@ -6,7 +6,7 @@ namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
     internal abstract class BaseActivation<T>
-         where T : class, IActivationFunction, new()
+         where T : class, IActivationFunction
     {
         static BaseActivation()
         {
@@ -21,7 +21,7 @@ namespace ANN.Net.ActivationFunctions
             {
                 if (!instance.ContainsKey(typeof(T)))
                 {
-                    instance.Add(typeof(T), new T());
+                    instance.Add(typeof(T), Activator.CreateInstance<T>());
                 }
 
                 return instance[typeof(T)] as T;

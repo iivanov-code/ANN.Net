@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using ANN.Net.ActivationFunctions;
 
 namespace ANN.Net.Utils
@@ -68,6 +69,27 @@ namespace ANN.Net.Utils
             return newMatrix;
         }
 
+        public static Quad[] MatrixSum(params Quad[][] matrixes)
+        {
+            if (matrixes == null || matrixes.Length == 0)
+                throw new ArgumentNullException("Matrixes parameter is empty");
+
+            if (matrixes.Select(x => x.Length).Distinct().Count() > 1)
+                throw new ArgumentException("Matrixes of different sizes found");
+
+            Quad[] newMatrix = new Quad[matrixes[0].Length];
+
+            for (int i = 0; i < matrixes.Length; i++)
+            {
+                for (int j = 0; i < newMatrix.Length; j++)
+                {
+                    newMatrix[j] += matrixes[i][j];
+                }
+            }
+
+            return newMatrix;
+        }
+
         public static Quad[,] MatrixTanh(Quad[,] matrix)
         {
             return matrix.ForEach(x => TanHActivation.Activate(ref x));
@@ -85,7 +107,7 @@ namespace ANN.Net.Utils
 
         public static Quad[,] MatrixSigmoid(Quad[,] matrix)
         {
-            return matrix.ForEach(x => SigmoidActivation.Activate(ref x));
+            return matrix.ForEach(x => HardSigmoidActivation.Activate(ref x));
         }
 
         public static Quad[,] CopyMatrix(Quad[,] matrix)
@@ -99,6 +121,12 @@ namespace ANN.Net.Utils
             return matrix.ForEach(x => NetworkUtils.GetRandomNumber(fromInclusive, toInclusive));
         }
 
+        /// <summary>
+        /// Dot product multiplication
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
         public static Quad[,] MatrixHadamard(Quad[,] a, Quad[,] b)
         {
             int rows = a.GetLength(0);
@@ -116,6 +144,12 @@ namespace ANN.Net.Utils
             return result;
         }
 
+        /// <summary>
+        /// Dot product multiplication
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
         public static Quad[] MatrixHadamard(Quad[] a, Quad[] b)
         {
             Quad[] newMatrix = new Quad[a.Length];
