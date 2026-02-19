@@ -37,7 +37,7 @@ namespace ANN.Net.Neurons
 
             cellState = MatrixUtils.MatrixSum(forgetResult, inputResult);
 
-            Quad[] ht = MatrixUtils.MatrixHadamard(this.outputGate.Propagate(value.Values), cellState);
+            Quad[] ht = MatrixUtils.MatrixHadamard(this.outputGate.Propagate(value.Values), MatrixUtils.VectorTanh(cellState));
 
             foreach (var synapse in this.Outputs)
             {
