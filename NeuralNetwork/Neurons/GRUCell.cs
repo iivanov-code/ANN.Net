@@ -10,10 +10,14 @@ namespace ANN.Net.Neurons
     internal class GRUCell : Cell, IGRUCell
     {
         private INetwork resetGate, updateGate, targetGate;
+        private ushort inputSize, outputSize;
 
         public GRUCell(ushort inputNeurons, ushort outputNeurons)
             : base(ref inputNeurons, outputNeurons)
         {
+            this.outputSize = outputNeurons;
+            this.inputSize = (ushort)(inputNeurons - outputNeurons);
+            
             this.resetGate = BuildGate(inputNeurons, outputNeurons);
             this.updateGate = BuildGate(inputNeurons, outputNeurons);
             this.targetGate = BuildGate(inputNeurons, outputNeurons, ActivationTypes.HyperbolicTangens);
@@ -26,31 +30,52 @@ namespace ANN.Net.Neurons
 
         public void Propagate(NeuronPropagateEventArgs value)
         {
-            // Compute reset gate: r_t = sigmoid(W_r * x_t + U_r * h_{t-1})
-            Quad[] resetResult = this.resetGate.Propagate(value.Values);
+            // value.Values contains [x_t, h_{t-1}] concatenated
+            // Split into input and previous hidden state
+            Quad[] xt = new Quad[inputSize];
+            Quad[] htPrev = null;
             
-            // Compute update gate: z_t = sigmoid(W_z * x_t + U_z * h_{t-1})
-            Quad[] updateResult = this.updateGate.Propagate(value.Values);
-            
-            // Apply reset gate to previous hidden state: r_t ⊙ h_{t-1}
-            Quad[] resetHidden;
-            if (cellState != null)
+            if (cellState != null && value.Values.Length == inputSize + outputSize)
             {
-                resetHidden = MatrixUtils.MatrixHadamard(resetResult, cellState);
+                Array.Copy(value.Values, 0, xt, 0, inputSize);
+                htPrev = new Quad[outputSize];
+                Array.Copy(value.Values, inputSize, htPrev, 0, outputSize);
+            }
+            else if (value.Values.Length >= inputSize)
+            {
+                Array.Copy(value.Values, 0, xt, 0, inputSize);
             }
             else
             {
-                resetHidden = resetResult;
+                // Input is smaller than expected, just use what we have
+                xt = value.Values;
             }
             
-            // Compute candidate hidden state: h~_t = tanh(W_h * x_t + U_h * (r_t ⊙ h_{t-1}))
-            // Note: The targetGate should receive the reset-gated hidden state
-            // Since the gate building concatenates input and previous output,
-            // we need to work with the gate's internal structure
-            // For now, we compute the target with original values
-            Quad[] candidateHidden = this.targetGate.Propagate(value.Values);
+            // Compute reset gate: r_t = sigmoid(W_r * [x_t, h_{t-1}])
+            Quad[] resetResult = this.resetGate.Propagate(value.Values);
             
-            // Compute final hidden state: h_t = (1 - z_t) ⊙ h~_t + z_t ⊙ h_{t-1}
+            // Compute update gate: z_t = sigmoid(W_z * [x_t, h_{t-1}])
+            Quad[] updateResult = this.updateGate.Propagate(value.Values);
+            
+            // Compute candidate hidden state: h~_t = tanh(W_h * [x_t, r_t ⊙ h_{t-1}])
+            // Apply reset gate to previous hidden state
+            Quad[] candidateInput;
+            if (htPrev != null)
+            {
+                Quad[] resetHidden = MatrixUtils.MatrixHadamard(resetResult, htPrev);
+                // Concatenate x_t with reset-gated hidden state
+                candidateInput = new Quad[inputSize + outputSize];
+                Array.Copy(xt, 0, candidateInput, 0, inputSize);
+                Array.Copy(resetHidden, 0, candidateInput, inputSize, outputSize);
+            }
+            else
+            {
+                candidateInput = value.Values;
+            }
+            
+            Quad[] candidateHidden = this.targetGate.Propagate(candidateInput);
+            
+            // Compute final hidden state: h_t = z_t ⊙ h_{t-1} + (1 - z_t) ⊙ h~_t
             Quad[] ht;
             if (cellState != null)
             {
