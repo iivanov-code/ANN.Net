@@ -12,7 +12,7 @@ namespace ANN.Net.Neurons
         private INetwork resetGate, updateGate, targetGate;
         private ushort inputSize, outputSize;
 
-        public GRUCell(ushort inputNeurons, ushort outputNeurons)
+        public GRUCell(ref ushort inputNeurons, ushort outputNeurons)
             : base(ref inputNeurons, outputNeurons)
         {
             this.outputSize = outputNeurons;
@@ -30,7 +30,8 @@ namespace ANN.Net.Neurons
 
         public void Propagate(NeuronPropagateEventArgs value)
         {
-            // value.Values contains [x_t, h_{t-1}] concatenated
+            // value.Values typically contains [x_t, h_{t-1}] concatenated when cellState exists
+            // On first call (cellState == null), it may contain only x_t
             // Split into input and previous hidden state
             Quad[] xt = new Quad[inputSize];
             Quad[] htPrev = null;
@@ -47,7 +48,7 @@ namespace ANN.Net.Neurons
             }
             else
             {
-                // Input is smaller than expected, just use what we have
+                // Fallback for unexpected input size - use what we have
                 xt = value.Values;
             }
             
