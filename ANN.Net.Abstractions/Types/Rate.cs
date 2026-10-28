@@ -10,7 +10,9 @@ public struct Rate
 
     public Rate(float value)
     {
-        if (value >= MinValue.value && value <= MaxValue.value)
+        // compare against the literal bounds: MinValue and MaxValue are themselves
+        // constructed through this constructor while the static fields are still default
+        if (value >= 0f && value <= 1f)
         {
             this.value = value;
         }

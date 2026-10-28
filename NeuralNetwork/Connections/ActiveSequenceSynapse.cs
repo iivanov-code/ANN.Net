@@ -30,9 +30,13 @@ namespace ANN.Net.Connections
         {
         }
 
-        public void Propagate(CellPropagateEventArgs values)
+        public void Propagate(SequencePropagateEventArgs values)
         {
-            OutputCell.Propagate(values);
+            OutputCell.Propagate(new NeuronPropagateEventArgs
+            {
+                Values = values.Values,
+                ClearValue = values.ClearValue
+            });
         }
 
         public void Propagate(NeuronPropagateEventArgs value)
@@ -45,9 +49,10 @@ namespace ANN.Net.Connections
             else if (counter == values.Length)
             {
                 counter = 0;
-                var values = new CellPropagateEventArgs(this.values, null, false);
-                values.ClearValue = value.ClearValue;
-                OutputCell.Propagate(values);
+                Propagate(new SequencePropagateEventArgs(this.values)
+                {
+                    ClearValue = value.ClearValue
+                });
             }
         }
     }

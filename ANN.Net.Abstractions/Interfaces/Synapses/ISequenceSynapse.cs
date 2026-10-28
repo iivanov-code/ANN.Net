@@ -4,6 +4,6 @@ namespace ANN.Net.Abstractions.Interfaces.Synapses
 {
     public interface ISequenceSynapse : ISynapse
     {
-        void Propagate(CellPropagateEventArgs values);
+        void Propagate(SequencePropagateEventArgs values);
     }
 }

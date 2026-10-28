@@ -1,6 +1,6 @@
 ﻿namespace ANN.Net.Utils
 {
-    public static partial class Math
+    public static partial class QuadMath
     {
         public static Quad Max(Quad x, Quad y)
         {

@@ -1,12 +1,20 @@
-﻿using ANN.Net.Abstractions.Interfaces;
+﻿using System.Collections.Generic;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Models;
 
 namespace ANN.Net.LossFunctions
 {
     internal class DifferenceLossFunction : BaseLossFunction<DifferenceLossFunction>, ILossFunction
     {
-        public Quad CalculateLoss(Quad target, Quad predicted)
+        public Quad CalculateLoss(IList<ErrorResult> result)
         {
-            return predicted - target;
+            Quad sum = 0;
+            foreach (var item in result)
+            {
+                sum += item.Predicted - item.Target;
+            }
+
+            return sum;
         }
     }
 }

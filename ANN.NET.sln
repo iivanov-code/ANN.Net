@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.5.33424.131
+# Visual Studio Version 18
+VisualStudioVersion = 18.11.12315.225 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ANN.Net", "NeuralNetwork\ANN.Net.csproj", "{4AB65A14-603F-471D-871A-5D658D4CCE87}"
 EndProject
@@ -12,6 +12,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
 		CODE_OF_CONDUCT.md = CODE_OF_CONDUCT.md
+		Directory.Build.props = Directory.Build.props
+		Directory.Build.targets = Directory.Build.targets
 		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
@@ -19,6 +21,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ANN.Net.Remote.Abstactions", "ANN.Net.Remote.Abstactions\ANN.Net.Remote.Abstactions.csproj", "{137DB0C8-71E7-4DF0-86AC-AD89C33FA9D7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ANN.Net.Remote", "ANN.Net.Remote\ANN.Net.Remote.csproj", "{B6A671E8-3FFB-490D-BD59-8F8AA149DBB0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ANN.Net.Tests", "ANN.Net.Tests\ANN.Net.Tests.csproj", "{3771F3E5-2141-46DD-9EB9-BE1F13617EC6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -42,6 +46,10 @@ Global
 		{B6A671E8-3FFB-490D-BD59-8F8AA149DBB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B6A671E8-3FFB-490D-BD59-8F8AA149DBB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B6A671E8-3FFB-490D-BD59-8F8AA149DBB0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3771F3E5-2141-46DD-9EB9-BE1F13617EC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3771F3E5-2141-46DD-9EB9-BE1F13617EC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3771F3E5-2141-46DD-9EB9-BE1F13617EC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3771F3E5-2141-46DD-9EB9-BE1F13617EC6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

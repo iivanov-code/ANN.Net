@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization.Formatters.Binary;
+
 using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
@@ -65,16 +66,24 @@ namespace ANN.Net
             Formatter.Serialize(fileStream, this);
         }
 
+#pragma warning disable SYSLIB0011 // Type or member is obsolete
         private static BinaryFormatter Formatter
         {
             get
             {
                 BinaryFormatter formatter = new BinaryFormatter();
+#pragma warning disable SYSLIB0050 // Type or member is obsolete
                 formatter.TypeFormat = FormatterTypeStyle.XsdString;
+#pragma warning restore SYSLIB0050 // Type or member is obsolete
+#pragma warning disable SYSLIB0050 // Type or member is obsolete
                 formatter.AssemblyFormat = FormatterAssemblyStyle.Simple;
+#pragma warning restore SYSLIB0050 // Type or member is obsolete
+#pragma warning disable SYSLIB0050 // Type or member is obsolete
                 formatter.FilterLevel = TypeFilterLevel.Full;
+#pragma warning restore SYSLIB0050 // Type or member is obsolete
                 return formatter;
             }
         }
+#pragma warning restore SYSLIB0011 // Type or member is obsolete
     }
 }

@@ -4,6 +4,7 @@ using System.Linq;
 using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
+using ANN.Net.Abstractions.Models;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Neurons;
@@ -90,17 +91,17 @@ namespace ANN.Net
                 targets = normalizedValues;
             }
 
-            Quad totalError = 0;
             Quad[] values = OutputNeurons.Select(x => x.Value).ToArray();
+            var results = new List<ErrorResult>(targets.Length);
             for (int i = 0; i < targets.Length; i++)
             {
-                Quad error = this.lossFunction.CalculateLoss(targets[i], values[i]);
+                Quad error = values[i] - targets[i];
                 this.Errors[i] = error;
                 OutputNeurons[i].Backpropagate(new BackpropagateEventArgs(error));
-                totalError += error;
+                results.Add(new ErrorResult { Target = targets[i], Predicted = values[i] });
             }
 
-            return totalError;
+            return this.lossFunction.CalculateLoss(results);
         }
     }
 }

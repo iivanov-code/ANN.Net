@@ -81,7 +81,7 @@ namespace ANN.Net.Utils
 
             for (int i = 0; i < matrixes.Length; i++)
             {
-                for (int j = 0; i < newMatrix.Length; j++)
+                for (int j = 0; j < newMatrix.Length; j++)
                 {
                     newMatrix[j] += matrixes[i][j];
                 }

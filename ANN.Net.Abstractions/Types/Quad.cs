@@ -24,7 +24,7 @@ public struct Quad : IEquatable<Quad>, IComparable<Quad>, ISerializable, IConver
 
     public static implicit operator float(Quad value)
     {
-        return value;
+        return value.value;
     }
 
     public static implicit operator Quad(byte value)

@@ -1,0 +1,38 @@
+<Project>
+    <!-- Static code analyzers. PrivateAssets=all keeps them out of the produced NuGet packages. -->
+    <ItemGroup>
+        <!-- Logic/bug detection and security hotspots. -->
+        <PackageReference Include="SonarAnalyzer.CSharp" Version="10.33.0.1635" PrivateAssets="all" />
+        <!-- Correctness, API usage and performance rules. -->
+        <PackageReference Include="Meziantou.Analyzer" Version="3.0.177" PrivateAssets="all" />
+        <!-- Async/await misuse (fire-and-forget, async void, unnecessary state machines). -->
+        <PackageReference Include="AsyncFixer" Version="2.1.0" PrivateAssets="all" />
+        <!--<PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" PrivateAssets="all" />-->
+    </ItemGroup>
+
+    <!-- Common build settings. Individual projects can override any of these. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- Disable warnings for missing or misplaced XML doc comments. -->
+        <!-- DV2001: Microsoft.DependencyValidation.Analyzers is referenced by ten projects but
+         the solution contains no layer diagrams, so the analyzer can only ever report that
+         it has nothing to validate. -->
+        <NoWarn>$(NoWarn);CS1591;CS1573;CS1587;CS1570;DV2001;CA5362</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- Enable .NET analyzers -->
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+        <!-- Analysis level -->
+        <AnalysisLevel>latest</AnalysisLevel>
+
+        <!-- Run analyzers during build -->
+        <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+
+        <!-- Run analyzers live in IDE -->
+        <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
+    </PropertyGroup>
+</Project>

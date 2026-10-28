@@ -36,6 +36,15 @@ namespace ANN.Net.Utils
             return 1 / NetworkUtils.GetRandomNumber(1, neuronCount) + NetworkUtils.GetRandomNumber(0.001f, 0.009f, 4);
         }
 
+        /// <summary>
+        /// Glorot (Xavier) uniform initialization: U(-limit, limit) with limit = sqrt(6 / (fanIn + fanOut))
+        /// </summary>
+        public static Quad GlorotWeight(int fanIn, int fanOut)
+        {
+            double limit = System.Math.Sqrt(6.0 / (fanIn + fanOut));
+            return (Quad)(Rand.NextDouble() * 2 * limit - limit);
+        }
+
         public static Quad Normalize(Quad value, Quad minValue, Quad maxValue)
         {
             return (value - minValue) / (maxValue - minValue);
@@ -64,14 +73,14 @@ namespace ANN.Net.Utils
         internal static Quad GetRandomNumber(Quad fromInclusive, Quad toInclusive, int decimals = 2)
         {
             Quad value = Rand.GetRandomNumber(fromInclusive, toInclusive, decimals);
-            value = (Quad)Math.Round(value, decimals);
+            value = (Quad)System.Math.Round(value, decimals);
             return value;
         }
 
         internal static Quad GetRandomNumber(this Random rand, Quad minimum, Quad maximum, int decimals = 6)
         {
             Quad value = (Quad)(rand.NextDouble() * (maximum - minimum) + minimum);
-            return (Quad)Math.Round(value, decimals, MidpointRounding.AwayFromZero);
+            return (Quad)System.Math.Round(value, decimals, MidpointRounding.AwayFromZero);
         }
 
         internal static ActivationTypes GetActivationType(this Neuron neuron)
@@ -213,7 +222,7 @@ namespace ANN.Net.Utils
             switch (type)
             {
                 case LossFunctionTypes.Absolute:
-                    return AbsoluteLossFunction.Instance;
+                    return MeanAbsoluteLossFunction.Instance;
 
                 case LossFunctionTypes.Squared:
                     return SquaredLossFunction.Instance;

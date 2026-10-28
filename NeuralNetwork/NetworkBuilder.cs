@@ -50,15 +50,15 @@ namespace ANN.Net
                             break;
 
                         case NeuronType.LSTM:
-                            neuronConstructor = (settings) => new OldNetLSTMCell(2, 2);
+                            neuronConstructor = (settings) => new LSTMCell(2, 2);
                             break;
 
                         case NeuronType.LSTMPeepHole:
-                            neuronConstructor = (settings) => new OldNetLSTMCell(2, 2);
+                            neuronConstructor = (settings) => new LSTMCell(2, 2);
                             break;
 
                         case NeuronType.GRU:
-                            neuronConstructor = (settings) => new GRUCell(settings.ActivationType);
+                            neuronConstructor = (settings) => new GRUCell(2, 2);
                             break;
 
                         default:

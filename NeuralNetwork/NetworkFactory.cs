@@ -4,6 +4,8 @@ using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Settings;
+using ANN.Net.Tokenizers;
+using ANN.Net.Transformers;
 
 namespace ANN.Net
 {
@@ -55,6 +57,16 @@ namespace ANN.Net
         public static INetwork BuildCellRNN(NetworkSettings settings, RecurrentLayerSettings[] cellSettings)
         {
             return null;
+        }
+
+        public static ISequenceNetwork BuildTransformer(TransformerSettings settings)
+        {
+            return new TransformerNetwork(settings);
+        }
+
+        public static ITokenizer BuildBpeTokenizer(BpeTokenizerSettings settings)
+        {
+            return new BpeTokenizer(settings);
         }
     }
 }

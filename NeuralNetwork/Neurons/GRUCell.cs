@@ -10,7 +10,7 @@ namespace ANN.Net.Neurons
     {
         private INetwork resetGate, updateGate, targetGate;
 
-        public GRUCell(ref ushort inputNeurons, ushort outputNeurons)
+        public GRUCell(ushort inputNeurons, ushort outputNeurons)
             : base(ref inputNeurons, outputNeurons)
         {
             this.resetGate = BuildGate(inputNeurons, outputNeurons);
