@@ -6,6 +6,9 @@ using ANN.Net.Abstractions.Arguments;
 
 namespace ANN.Net.Remote.Abstactions.Models
 {
+    /// <summary>
+    /// Value of one remote synapse for one propagation
+    /// </summary>
     [Serializable]
     [XmlRoot("RP")]
     public class RemotePropagationDTO
@@ -26,9 +29,10 @@ namespace ANN.Net.Remote.Abstactions.Models
         [JsonPropertyName("vs")]
         public double[] Values { get; set; }
 
-
         public static explicit operator RemotePropagationDTO(NeuronPropagateEventArgs eventArgs)
         {
+            if (eventArgs == null) throw new ArgumentNullException(nameof(eventArgs));
+
             return new RemotePropagationDTO
             {
                 ShouldActivate = eventArgs.ShouldActivate,

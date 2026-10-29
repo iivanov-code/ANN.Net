@@ -31,7 +31,7 @@ namespace ANN.Net.Connections
         protected IOptimizer optimizer;
 
         public string Id { get; set; }
-        public Quad Weight { get; protected set; }
+        public Quad Weight { get; protected internal set; }
         public INeuron Input { get; protected set; }
         public INeuron Output { get; protected set; }
 

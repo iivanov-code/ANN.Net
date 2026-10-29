@@ -12,8 +12,14 @@ namespace ANN.Net.Neurons
             : base(false, true, activationType, id)
         { }
 
+        /// <summary>
+        /// Gradient of the loss with respect to the raw input value, from the last backpropagation
+        /// </summary>
+        public Quad Gradient => this.Delta;
+
         public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
+            // the error of every output synapse is collected; once complete FeedbackError stores the gradient
             Outputs.AccumulateError(errorSignal);
         }
 

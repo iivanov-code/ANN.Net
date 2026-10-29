@@ -1,9 +1,18 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <!-- RPC.Library is the sibling repository https://github.com/xtremista89/RPC.Library checked out next to this one -->
+        <RpcLibraryProject Condition="'$(RpcLibraryProject)' == ''">$(MSBuildThisFileDirectory)..\..\RPC.Library\RPC.Library\RPC.Library.csproj</RpcLibraryProject>
+    </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\ANN.Net.Remote.Abstactions\ANN.Net.Remote.Abstactions.csproj" />
         <ProjectReference Include="..\NeuralNetwork\ANN.Net.csproj" />
+        <ProjectReference Include="$(RpcLibraryProject)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="ANN.Net.Tests" />
     </ItemGroup>
 
 </Project>

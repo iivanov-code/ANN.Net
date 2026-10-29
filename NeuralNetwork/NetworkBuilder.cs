@@ -157,7 +157,7 @@ namespace ANN.Net
                     break;
 
                 case WeightInitType.Xavier:
-                    initialWeight = NetworkUtils.XavierWeight(settings.NeuronsCount);
+                    initialWeight = NetworkUtils.GlorotWeight(settings.NeuronsCount, settings.NeuronsCount);
                     break;
 
                 default:
@@ -281,8 +281,8 @@ namespace ANN.Net
                 }
             }
 
-            if (settings.HasBiasNeuron)
-                layer.Add(new BiasNeuron(settings.ActivationType) as T);
+            if (settings.HasBiasNeuron && new BiasNeuron(settings.ActivationType) is T bias)
+                layer.Add(bias);
 
             return layer;
         }

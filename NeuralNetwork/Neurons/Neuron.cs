@@ -7,6 +7,10 @@ using ANN.Net.Utils;
 
 namespace ANN.Net.Neurons
 {
+    /// <summary>
+    /// Neuron that sums its weighted inputs, activates the sum and sends the result along every output synapse.
+    /// It remembers the sum before activation so the error can be turned into a gradient when it comes back
+    /// </summary>
     [Serializable]
     internal abstract class Neuron : BaseNeuron, INeuron
     {
@@ -18,27 +22,65 @@ namespace ANN.Net.Neurons
 
         public IActivationFunction Function { get; private set; }
 
+        /// <summary>
+        /// Weighted input sum of the last propagation, before activation
+        /// </summary>
+        public Quad PreActivation { get; protected set; }
+
+        /// <summary>
+        /// Gradient of the loss with respect to <see cref="PreActivation"/> from the last backpropagation
+        /// </summary>
+        public Quad Delta { get; protected set; }
+
+        /// <summary>
+        /// Whether the activation function was applied during the last propagation
+        /// </summary>
+        protected bool WasActivated { get; set; }
+
+        /// <summary>
+        /// Whether this neuron applies its activation function at all
+        /// </summary>
+        protected virtual bool ShouldActivate => true;
+
         protected override void ActivateNeuron(NeuronPropagateEventArgs value)
         {
-            if (value.ShouldActivate)
+            this.PreActivation = value.Value;
+            this.WasActivated = value.ShouldActivate && this.ShouldActivate;
+
+            Quad output = value.Value;
+            if (this.WasActivated)
             {
-                Quad activationValue = value.Value;
-                activationValue = Function.Activation(ref activationValue);
-                value.Value = activationValue;
+                output = this.Function.Activation(ref output);
             }
 
-            this.Outputs.PropagateForEach(value);
+            this.Value = output;
+
+            // every synapse weights its own copy of the message, so one synapse cannot change what the next one sees
+            this.Outputs.PropagateForEach(new NeuronPropagateEventArgs(output));
         }
 
         protected override void FeedbackError(BackpropagateEventArgs errorSignal)
         {
-            if (errorSignal.ShouldActivate)
-                Outputs.Value = Function.Derivative(Outputs.Value);
+            this.Delta = this.ToDelta(errorSignal);
 
-            errorSignal.ErrorSignal = Outputs.Value * Inputs.Value; //derivative * errorSignal
-            Inputs.BackpropagateForEach(errorSignal);
-            Inputs.ClearValue();
-            Outputs.ClearValue();
+            if (this.Inputs != null)
+            {
+                this.Inputs.BackpropagateForEach(new BackpropagateEventArgs(this.Delta));
+            }
+        }
+
+        /// <summary>
+        /// Turns the gradient with respect to the output into the gradient with respect to the pre-activation sum
+        /// </summary>
+        protected Quad ToDelta(BackpropagateEventArgs errorSignal)
+        {
+            Quad delta = errorSignal.ErrorSignal;
+            if (errorSignal.ShouldActivate && this.WasActivated)
+            {
+                delta *= this.Function.Derivative(this.PreActivation);
+            }
+
+            return delta;
         }
     }
 }

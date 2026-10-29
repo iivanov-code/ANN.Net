@@ -8,7 +8,7 @@ namespace ANN.Net.Neurons
     [Serializable]
     internal class OutputNeuron : Neuron, IOutputNeuron
     {
-        private bool shouldActivate;
+        private readonly bool shouldActivate;
 
         public OutputNeuron(ActivationTypes activationType, bool shouldActivate, uint? id = null)
             : base(true, true, activationType, id)
@@ -16,7 +16,7 @@ namespace ANN.Net.Neurons
             this.shouldActivate = shouldActivate;
         }
 
-        public Quad Value => this.Outputs.Value;
+        protected override bool ShouldActivate => this.shouldActivate;
 
         public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
@@ -25,17 +25,7 @@ namespace ANN.Net.Neurons
 
         public override void Propagate(NeuronPropagateEventArgs value)
         {
-            Outputs.AccountSignal(value);
-        }
-
-        protected override void ActivateNeuron(NeuronPropagateEventArgs value)
-        {
-            base.ActivateNeuron(value);
-        }
-
-        protected override void FeedbackError(BackpropagateEventArgs value)
-        {
-            base.FeedbackError(value);
+            Inputs.AccountSignal(value);
         }
     }
 }

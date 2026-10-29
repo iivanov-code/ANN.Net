@@ -25,6 +25,18 @@ namespace ANN.Net.Tests.Transformers
         }
 
         [Fact]
+        public void NeuronFeedForwardNetwork_InputGradientsMatchFiniteDifferences()
+        {
+            var random = new Random(7);
+            var network = new NeuronFeedForwardNetwork(DIMENSION, 5, ActivationTypes.HyperbolicTangens, OptimizerTypes.Normal, WeightInitType.Xavier, new List<LearningRateOptimizer>());
+
+            GradientChecker.AssertInputGradients(network.Propagate,
+                                                 network.Backpropagate,
+                                                 GradientChecker.RandomSequence(random, LENGTH, DIMENSION),
+                                                 GradientChecker.RandomSequence(random, LENGTH, DIMENSION));
+        }
+
+        [Fact]
         public void LinearProjection_WeightAndBiasGradientsMatchFiniteDifferences()
         {
             var random = new Random(2);
@@ -129,12 +141,14 @@ namespace ANN.Net.Tests.Transformers
         }
 
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void TransformerEncoderBlock_InputGradientsMatchFiniteDifferences(bool useCausalMask)
+        [InlineData(false, FeedForwardType.Matrix)]
+        [InlineData(true, FeedForwardType.Matrix)]
+        [InlineData(false, FeedForwardType.NeuronGraph)]
+        [InlineData(true, FeedForwardType.NeuronGraph)]
+        public void TransformerEncoderBlock_InputGradientsMatchFiniteDifferences(bool useCausalMask, FeedForwardType feedForwardType)
         {
             var random = new Random(6);
-            var block = new TransformerEncoderBlock(DIMENSION, 3, 8, useCausalMask, ActivationTypes.ArcusTangens, OptimizerTypes.Normal, WeightInitType.Xavier, new List<LearningRateOptimizer>());
+            var block = new TransformerEncoderBlock(DIMENSION, 3, 8, useCausalMask, ActivationTypes.ArcusTangens, feedForwardType, OptimizerTypes.Normal, WeightInitType.Xavier, new List<LearningRateOptimizer>());
 
             GradientChecker.AssertInputGradients(block.Propagate,
                                                  block.Backpropagate,

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
@@ -64,6 +65,27 @@ namespace ANN.Net.Tests.Transformers
             Assert.Equal(3, outputs.Length);
             Assert.All(outputs, output => Assert.Equal(4, output.Length));
             Assert.Same(outputs, network.Values);
+        }
+
+        [Fact]
+        public void Propagate_WithNeuronGraphFeedForward_ReturnsOneOutputVectorPerInputVector()
+        {
+            TransformerSettings settings = CreateSettings();
+            settings.FeedForwardType = FeedForwardType.NeuronGraph;
+            ISequenceNetwork network = NetworkFactory.BuildTransformer(settings);
+
+            Quad[][] first = network.Propagate(OneHotSequence(0, 1, 2));
+            Quad[][] second = network.Propagate(OneHotSequence(0, 1, 2));
+
+            Assert.Equal(3, first.Length);
+            Assert.All(first, output => Assert.Equal(4, output.Length));
+            for (int t = 0; t < 3; t++)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    Assert.Equal((float)first[t][i], (float)second[t][i], 5);
+                }
+            }
         }
 
         [Fact]
@@ -142,7 +164,7 @@ namespace ANN.Net.Tests.Transformers
                 anyDifferent |= Math.Abs(first[0][i] - second[0][i]) > 1e-6;
             }
 
-            Assert.True(anyDifferent);
+            Assert.True(anyDifferent, $"first[0] = {string.Join(", ", first[0].Select(v => (float)v))}; second[0] = {string.Join(", ", second[0].Select(v => (float)v))}");
         }
 
         [Fact]
@@ -164,10 +186,14 @@ namespace ANN.Net.Tests.Transformers
             }
         }
 
-        [Fact]
-        public void Backpropagate_RepeatedTraining_LearnsNextTokenPrediction()
+        [Theory]
+        [InlineData(FeedForwardType.Matrix)]
+        [InlineData(FeedForwardType.NeuronGraph)]
+        public void Backpropagate_RepeatedTraining_LearnsNextTokenPrediction(FeedForwardType feedForwardType)
         {
-            ISequenceNetwork network = NetworkFactory.BuildTransformer(CreateSettings(useCausalMask: true, applySoftMax: true));
+            TransformerSettings settings = CreateSettings(useCausalMask: true, applySoftMax: true);
+            settings.FeedForwardType = feedForwardType;
+            ISequenceNetwork network = NetworkFactory.BuildTransformer(settings);
             foreach (LearningRateOptimizer optimizer in network.Optimizers)
             {
                 optimizer.LearningRate = 0.05f;

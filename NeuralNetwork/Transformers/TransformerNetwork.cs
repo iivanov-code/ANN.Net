@@ -46,6 +46,7 @@ namespace ANN.Net.Transformers
                                                             settings.FeedForwardDimension,
                                                             settings.UseCausalMask,
                                                             settings.FeedForwardActivationType,
+                                                            settings.FeedForwardType,
                                                             settings.OptimizerType,
                                                             settings.InitializationType,
                                                             this.Optimizers));
@@ -65,6 +66,14 @@ namespace ANN.Net.Transformers
         public Quad[][] Errors { get; private set; }
 
         public ICollection<LearningRateOptimizer> Optimizers { get; }
+
+        public int InputDimension => this.settings.InputDimension;
+
+        public int OutputDimension => this.settings.OutputDimension;
+
+        public int MaxSequenceLength => this.settings.MaxSequenceLength;
+
+        public bool OutputApplySoftMax => this.settings.OutputApplySoftMax;
 
         public Quad[][] Propagate(Quad[][] sequence)
         {

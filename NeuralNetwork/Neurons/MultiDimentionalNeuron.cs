@@ -15,6 +15,8 @@ namespace ANN.Net.Neurons
             this.network = network;
         }
 
+        public Quad Gradient => this.Delta;
+
         public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
             this.Outputs.AccumulateError(errorSignal);
@@ -27,27 +29,25 @@ namespace ANN.Net.Neurons
 
         protected override void ActivateNeuron(NeuronPropagateEventArgs value)
         {
-            if (value.ShouldActivate)
+            this.PreActivation = value.Value;
+            this.WasActivated = value.ShouldActivate;
+
+            Quad output = value.Value;
+            if (this.WasActivated)
             {
-                Quad activationValue = value.Value;
-                activationValue = Function.Activation(ref activationValue);
-                value.Value = activationValue;
+                output = this.Function.Activation(ref output);
             }
 
-            value.Value = this.network.Propagate(value.Value)[0];
-            this.Outputs.PropagateForEach(value);
+            output = this.network.Propagate(output)[0];
+            this.Value = output;
+            this.Outputs.PropagateForEach(new NeuronPropagateEventArgs(output));
         }
 
         protected override void FeedbackError(BackpropagateEventArgs errorSignal)
         {
-            if (errorSignal.ShouldActivate)
-                Outputs.Value = Function.Derivative(Outputs.Value);
-
-            errorSignal.ErrorSignal = Outputs.Value * Inputs.Value; //derivative * errorSignal
-            errorSignal.ErrorSignal = this.network.Backpropagate(errorSignal.ErrorSignal);
-            Inputs.BackpropagateForEach(errorSignal);
-            Inputs.ClearValue();
-            Outputs.ClearValue();
+            Quad delta = this.network.Backpropagate(this.ToDelta(errorSignal));
+            this.Delta = delta;
+            this.Inputs.BackpropagateForEach(new BackpropagateEventArgs(delta));
         }
     }
 }

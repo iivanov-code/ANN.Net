@@ -4,6 +4,8 @@ using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Settings;
+using ANN.Net.Embeddings;
+using ANN.Net.LanguageModels;
 using ANN.Net.Tokenizers;
 using ANN.Net.Transformers;
 
@@ -18,17 +20,29 @@ namespace ANN.Net
 
         internal static INetwork BuildFFN(NetworkSettings settings, IEnumerable<INeuron> additionalInputs = null, RecurrentLayerSettings hiddenSettings = null)
         {
+            return BuildFFN(settings, additionalInputs, hiddenSettings == null ? null : new[] { hiddenSettings });
+        }
+
+        /// <summary>
+        /// Builds a fully connected network with any number of hidden layer descriptions in order
+        /// </summary>
+        internal static INetwork BuildFFN(NetworkSettings settings, IEnumerable<INeuron> additionalInputs, RecurrentLayerSettings[] hiddenSettings)
+        {
             Network ffn = new Network(settings);
             NetworkBuilder builder = NetworkBuilder.Create();
 
             ffn.InputNeurons = builder.BuildInputNeurons(settings.InputSettings);
             ILayer<INeuron> prevLayer;
-            if (hiddenSettings != null)
+            if (hiddenSettings != null && hiddenSettings.Length > 0)
             {
                 ffn.HiddenLayers = builder.BuildHiddenLayers(ffn.InputNeurons.AsLayerOf<INeuron>(),
                                                              settings.IdentityGenerator,
                                                              hiddenSettings,
                                                              ffn.Optimizers);
+            }
+
+            if (ffn.HiddenLayers != null && ffn.HiddenLayers.Count > 0)
+            {
                 prevLayer = ffn.HiddenLayers.Last().AsLayerOf<INeuron>();
             }
             else
@@ -67,6 +81,23 @@ namespace ANN.Net
         public static ITokenizer BuildBpeTokenizer(BpeTokenizerSettings settings)
         {
             return new BpeTokenizer(settings);
+        }
+
+        public static IEmbeddingNetwork BuildWord2Vec(Word2VecSettings settings)
+        {
+            return new Word2VecNetwork(settings);
+        }
+
+        /// <summary>
+        /// Ties a trained tokenizer, optional token embeddings and a soft-max sequence network
+        /// into a next-token language model
+        /// </summary>
+        public static ILanguageModel BuildLanguageModel(LanguageModelSettings settings,
+                                                        ITokenizer tokenizer,
+                                                        ISequenceNetwork network,
+                                                        IEmbeddingNetwork embeddings = null)
+        {
+            return new LanguageModel(settings, tokenizer, network, embeddings);
         }
     }
 }

@@ -10,6 +10,8 @@ namespace ANN.Net.Neurons
 
         public uint ID { get; set; }
 
+        public Quad Value { get; protected set; }
+
         public ISynapses Outputs { get; protected set; }
 
         public ISynapses Inputs { get; protected set; }

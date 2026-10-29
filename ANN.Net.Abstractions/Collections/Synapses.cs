@@ -43,6 +43,10 @@ namespace ANN.Net.Abstractions.Collections
             }
         }
 
+        /// <summary>
+        /// Adds one incoming weighted value. Once every synapse has delivered, the sum is handed
+        /// to the neuron and the collection is reset for the next propagation
+        /// </summary>
         public void AccountSignal(NeuronPropagateEventArgs value)
         {
             lock (padlock)
@@ -57,12 +61,22 @@ namespace ANN.Net.Abstractions.Collections
                 if (activatedCount == this.list.Count)
                 {
                     activatedCount = 0;
-                    value.Value = Value;
-                    sendPropagateValue(value);
+                    Quad sum = Value;
+                    Value = 0;
+
+                    sendPropagateValue(new NeuronPropagateEventArgs(sum)
+                    {
+                        ShouldActivate = value.ShouldActivate,
+                        ClearValue = value.ClearValue
+                    });
                 }
             }
         }
 
+        /// <summary>
+        /// Adds one incoming weighted error. Once every forward synapse has delivered, the sum is handed
+        /// to the neuron and the collection is reset for the next backpropagation
+        /// </summary>
         public void AccumulateError(BackpropagateEventArgs errorSignal)
         {
             lock (padlock)
@@ -77,11 +91,15 @@ namespace ANN.Net.Abstractions.Collections
                 if (activatedCount + recurrentCount == this.list.Count)
                 {
                     activatedCount = 0;
-                    sendBackpropagateValue(new BackpropagateEventArgs(Value));
+                    Quad sum = Value;
+                    Value = 0;
+
+                    sendBackpropagateValue(new BackpropagateEventArgs(sum)
+                    {
+                        ShouldActivate = errorSignal.ShouldActivate
+                    });
                 }
             }
-
-            errorSignal.UpdateWeight(errorSignal.ErrorSignal * Value); //Gradient
         }
     }
 }

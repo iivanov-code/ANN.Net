@@ -1,30 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
 using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.LossFunctions
 {
+    /// <summary>
+    /// One shared instance per loss function type, created on first use in a thread-safe way
+    /// </summary>
     internal abstract class BaseLossFunction<T>
         where T : class, ILossFunction
     {
-        static BaseLossFunction()
-        {
-            instance = new Dictionary<Type, ILossFunction>();
-        }
+        private static readonly Lazy<T> instance = new Lazy<T>(Activator.CreateInstance<T>);
 
-        private static Dictionary<Type, ILossFunction> instance;
-
-        public static T Instance
-        {
-            get
-            {
-                if (!instance.ContainsKey(typeof(T)))
-                {
-                    instance.Add(typeof(T), Activator.CreateInstance<T>());
-                }
-
-                return instance[typeof(T)] as T;
-            }
-        }
+        public static T Instance => instance.Value;
     }
 }

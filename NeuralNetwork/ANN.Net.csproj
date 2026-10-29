@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <ProjectReference Include="..\ANN.Net.Abstractions\ANN.Net.Abstractions.csproj" />
     </ItemGroup>
@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="ANN.Net.Tests" />
+        <InternalsVisibleTo Include="ANN.Net.Remote" />
     </ItemGroup>
 
 </Project>

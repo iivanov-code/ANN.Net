@@ -12,7 +12,7 @@ namespace ANN.Net.Transformers
     /// The same weights are applied to every vector of the sequence
     /// </summary>
     [Serializable]
-    internal class FeedForwardNetwork
+    internal class FeedForwardNetwork : IFeedForwardNetwork
     {
         private readonly LinearProjection expansion;
         private readonly LinearProjection contraction;

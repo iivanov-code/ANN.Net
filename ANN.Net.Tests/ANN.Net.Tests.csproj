@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
@@ -12,6 +12,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\NeuralNetwork\ANN.Net.csproj" />
+        <ProjectReference Include="..\ANN.Net.Remote\ANN.Net.Remote.csproj" />
     </ItemGroup>
 
 </Project>

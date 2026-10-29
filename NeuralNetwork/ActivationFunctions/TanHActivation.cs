@@ -7,7 +7,7 @@ namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
     [ActivationType(Type = ActivationTypes.HyperbolicTangens)]
-    internal class TanHActivation : BaseActivation<HardSigmoidActivation>, IActivationFunction
+    internal class TanHActivation : BaseActivation<TanHActivation>, IActivationFunction
     {
         private static readonly Quad minValue = -1;
         private static readonly Quad maxValue = 1;
@@ -22,10 +22,13 @@ namespace ANN.Net.ActivationFunctions
             return x;
         }
 
+        /// <summary>
+        /// Derivative at the value before activation: 1 - tanh(x)^2
+        /// </summary>
         public Quad Derivative(Quad x)
         {
-            //De
-            return (Quad)(1 - Math.Pow(x, 2));
+            double tanh = Math.Tanh(x);
+            return (Quad)(1 - tanh * tanh);
         }
 
         public static Quad Activate(ref Quad x)

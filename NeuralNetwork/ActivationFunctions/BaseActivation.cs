@@ -1,31 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
 using ANN.Net.Abstractions.Interfaces;
 
 namespace ANN.Net.ActivationFunctions
 {
+    /// <summary>
+    /// One shared instance per activation type, created on first use in a thread-safe way
+    /// </summary>
     [Serializable]
     internal abstract class BaseActivation<T>
          where T : class, IActivationFunction
     {
-        static BaseActivation()
-        {
-            instance = new Dictionary<Type, IActivationFunction>();
-        }
+        private static readonly Lazy<T> instance = new Lazy<T>(Activator.CreateInstance<T>);
 
-        private static Dictionary<Type, IActivationFunction> instance;
-
-        public static T Instance
-        {
-            get
-            {
-                if (!instance.ContainsKey(typeof(T)))
-                {
-                    instance.Add(typeof(T), Activator.CreateInstance<T>());
-                }
-
-                return instance[typeof(T)] as T;
-            }
-        }
+        public static T Instance => instance.Value;
     }
 }

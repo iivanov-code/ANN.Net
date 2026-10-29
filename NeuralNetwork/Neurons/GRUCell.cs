@@ -87,7 +87,7 @@ namespace ANN.Net.Neurons
                 Quad[] oneMinusUpdate = new Quad[updateResult.Length];
                 for (int i = 0; i < updateResult.Length; i++)
                 {
-                    oneMinusUpdate[i] = 1.0 - updateResult[i];
+                    oneMinusUpdate[i] = 1 - updateResult[i];
                 }
                 
                 Quad[] updateCandidate = MatrixUtils.MatrixHadamard(oneMinusUpdate, candidateHidden);

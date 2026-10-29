@@ -24,5 +24,25 @@ namespace ANN.Net.Abstractions.Interfaces
         Quad[][] Errors { get; }
 
         ICollection<LearningRateOptimizer> Optimizers { get; }
+
+        /// <summary>
+        /// Size of every input vector
+        /// </summary>
+        int InputDimension { get; }
+
+        /// <summary>
+        /// Size of every output vector
+        /// </summary>
+        int OutputDimension { get; }
+
+        /// <summary>
+        /// Longest sequence the network accepts
+        /// </summary>
+        int MaxSequenceLength { get; }
+
+        /// <summary>
+        /// True when every output vector is a probability distribution
+        /// </summary>
+        bool OutputApplySoftMax { get; }
     }
 }

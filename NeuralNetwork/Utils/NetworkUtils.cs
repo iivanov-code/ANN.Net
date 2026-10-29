@@ -55,15 +55,12 @@ namespace ANN.Net.Utils
             return minValue + normalizedValue * maxValue - normalizedValue * minValue;
         }
 
-        private static Random rand;
-
-        internal static Random Rand
-        {
-            get
-            {
-                return rand ?? (rand = new Random(new Random().Next(int.MinValue, int.MaxValue)));
-            }
-        }
+        /// <summary>
+        /// Shared random source for weight initialization and sampling.
+        /// <see cref="Random.Shared"/> is safe to use from several threads at once, which a
+        /// hand-made <see cref="Random"/> is not: concurrent calls can leave it returning zeros
+        /// </summary>
+        internal static Random Rand => Random.Shared;
 
         internal static bool RandomBoolean()
         {
@@ -98,6 +95,9 @@ namespace ANN.Net.Utils
 
                 case TanHActivation _:
                     return ActivationTypes.HyperbolicTangens;
+
+                case IdentityActivation _:
+                    return ActivationTypes.Identity;
 
                 default:
                     throw new ArgumentException("Invalid argument", nameof(neuron.Function));
@@ -151,6 +151,9 @@ namespace ANN.Net.Utils
 
                 case ActivationTypes.BinaryRELU:
                     return BinaryStepActivation.Instance;
+
+                case ActivationTypes.Identity:
+                    return IdentityActivation.Instance;
 
                 default:
                     throw new ArgumentException("Invalid argument", nameof(type));

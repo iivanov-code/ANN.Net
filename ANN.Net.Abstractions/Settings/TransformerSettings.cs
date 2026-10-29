@@ -50,6 +50,12 @@ namespace ANN.Net.Abstractions.Settings
         [DefaultValue(ActivationTypes.RELU)]
         public ActivationTypes FeedForwardActivationType { get; set; } = ActivationTypes.RELU;
 
+        /// <summary>
+        /// Implementation of the feed forward sub-layer: dense weight matrices, or a graph of neuron objects
+        /// </summary>
+        [DefaultValue(FeedForwardType.Matrix)]
+        public FeedForwardType FeedForwardType { get; set; }
+
         [DefaultValue(OptimizerTypes.Normal)]
         public OptimizerTypes OptimizerType { get; set; }
 

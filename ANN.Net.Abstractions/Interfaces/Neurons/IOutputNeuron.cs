@@ -2,6 +2,5 @@
 {
     public interface IOutputNeuron : INeuron
     {
-        Quad Value { get; }
     }
 }

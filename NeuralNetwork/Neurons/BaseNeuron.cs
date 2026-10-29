@@ -24,6 +24,11 @@ namespace ANN.Net.Neurons
 
         public uint ID { get; }
 
+        /// <summary>
+        /// Output of the last propagation, after activation
+        /// </summary>
+        public Quad Value { get; protected set; }
+
         public ISynapses Inputs { get; protected set; }
 
         public ISynapses Outputs { get; protected set; }

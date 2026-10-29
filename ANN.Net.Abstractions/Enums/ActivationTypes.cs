@@ -27,6 +27,11 @@ namespace ANN.Net.Abstractions.Enums
         TanHShrink = 19,
         SoftShrink = 20,
         HardShrink = 21,
-        GELU = 22
+        GELU = 22,
+
+        /// <summary>
+        /// Passes the value through unchanged (linear)
+        /// </summary>
+        Identity = 23
     }
 }

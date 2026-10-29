@@ -54,8 +54,19 @@ namespace ANN.Net
 
         public Quad[] Errors { get; }
 
+        /// <summary>
+        /// Gradient of the loss with respect to every input value, from the last backpropagation
+        /// </summary>
+        public Quad[] InputGradients => InputNeurons.OfType<InputNeuron>().Select(n => n.Gradient).ToArray();
+
         public Quad[] Propagate(Quad[] values)
         {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+
+            int inputsCount = InputNeurons.Count(n => !(n is BiasNeuron));
+            if (values.Length != inputsCount)
+                throw new ArgumentException($"Expected {inputsCount} input values but found {values.Length}", nameof(values));
+
             if (shouldNormalize)
             {
                 Quad[] normalizedValues = new Quad[values.Length];
@@ -66,14 +77,28 @@ namespace ANN.Net
                 values = normalizedValues;
             }
 
-            for (int i = 0; i < values.Length; i++)
+            int index = 0;
+            foreach (IInputNeuron neuron in InputNeurons)
             {
-                InputNeurons[i].Propagate(new NeuronPropagateEventArgs(values[i]));
+                if (neuron is BiasNeuron) continue;
+                neuron.Propagate(new NeuronPropagateEventArgs(values[index++]));
             }
 
-            if (InputNeurons.Count > values.Length && InputNeurons[values.Length] is BiasNeuron)
+            // bias neurons have no inputs, so the network fires them itself on every propagation
+            foreach (IInputNeuron neuron in InputNeurons)
             {
-                InputNeurons[values.Length].Propagate(new NeuronPropagateEventArgs(Quad.MaxValue));
+                if (neuron is BiasNeuron bias) bias.Propagate(new NeuronPropagateEventArgs(1));
+            }
+
+            if (HiddenLayers != null)
+            {
+                foreach (ILayer<IHiddenNeuron> layer in HiddenLayers)
+                {
+                    foreach (IHiddenNeuron neuron in layer)
+                    {
+                        if (neuron is BiasNeuron bias) bias.Propagate(new NeuronPropagateEventArgs(1));
+                    }
+                }
             }
 
             return Values;
@@ -81,6 +106,10 @@ namespace ANN.Net
 
         public Quad Backpropagate(Quad[] targets)
         {
+            if (targets == null) throw new ArgumentNullException(nameof(targets));
+            if (targets.Length != OutputNeurons.Count)
+                throw new ArgumentException($"Expected {OutputNeurons.Count} targets but found {targets.Length}", nameof(targets));
+
             if (shouldNormalize)
             {
                 Quad[] normalizedValues = new Quad[targets.Length];

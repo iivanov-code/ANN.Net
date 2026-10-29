@@ -34,9 +34,13 @@ namespace ANN.Net.ActivationFunctions
             return x;
         }
 
-        public Quad Derivative(Quad deltaX)
+        /// <summary>
+        /// Derivative at the value before activation: s(x) * (1 - s(x))
+        /// </summary>
+        public Quad Derivative(Quad x)
         {
-            return deltaX * (1 - deltaX);
+            double s = 1 / (1 + Math.Exp(-x));
+            return (Quad)(s * (1 - s));
         }
 
         public static Quad Activate(ref Quad x)

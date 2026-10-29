@@ -15,13 +15,14 @@ namespace ANN.Net.Transformers
         private readonly LayerNormalization attentionNormalization;
         private readonly MultiHeadAttention attention;
         private readonly LayerNormalization feedForwardNormalization;
-        private readonly FeedForwardNetwork feedForward;
+        private readonly IFeedForwardNetwork feedForward;
 
         public TransformerEncoderBlock(int modelDimension,
                                        int headsCount,
                                        int feedForwardDimension,
                                        bool useCausalMask,
                                        ActivationTypes feedForwardActivationType,
+                                       FeedForwardType feedForwardType,
                                        OptimizerTypes optimizerType,
                                        WeightInitType initializationType,
                                        ICollection<LearningRateOptimizer> optimizers)
@@ -29,10 +30,12 @@ namespace ANN.Net.Transformers
             this.attentionNormalization = new LayerNormalization(modelDimension, optimizerType, optimizers);
             this.attention = new MultiHeadAttention(modelDimension, headsCount, useCausalMask, optimizerType, initializationType, optimizers);
             this.feedForwardNormalization = new LayerNormalization(modelDimension, optimizerType, optimizers);
-            this.feedForward = new FeedForwardNetwork(modelDimension, feedForwardDimension, feedForwardActivationType, optimizerType, initializationType, optimizers);
+            this.feedForward = CreateFeedForward(feedForwardType, modelDimension, feedForwardDimension, feedForwardActivationType, optimizerType, initializationType, optimizers);
         }
 
         public MultiHeadAttention Attention => this.attention;
+
+        public IFeedForwardNetwork FeedForward => this.feedForward;
 
         public Quad[][] Propagate(Quad[][] inputs)
         {
@@ -53,6 +56,27 @@ namespace ANN.Net.Transformers
 
             Quad[][] attentionGradients = this.attentionNormalization.Backpropagate(this.attention.Backpropagate(residualGradients));
             return TransformerUtils.SequenceSum(residualGradients, attentionGradients);
+        }
+
+        private static IFeedForwardNetwork CreateFeedForward(FeedForwardType feedForwardType,
+                                                             int modelDimension,
+                                                             int feedForwardDimension,
+                                                             ActivationTypes activationType,
+                                                             OptimizerTypes optimizerType,
+                                                             WeightInitType initializationType,
+                                                             ICollection<LearningRateOptimizer> optimizers)
+        {
+            switch (feedForwardType)
+            {
+                case FeedForwardType.Matrix:
+                    return new FeedForwardNetwork(modelDimension, feedForwardDimension, activationType, optimizerType, initializationType, optimizers);
+
+                case FeedForwardType.NeuronGraph:
+                    return new NeuronFeedForwardNetwork(modelDimension, feedForwardDimension, activationType, optimizerType, initializationType, optimizers);
+
+                default:
+                    throw new ArgumentException("Invalid value", nameof(feedForwardType));
+            }
         }
     }
 }
