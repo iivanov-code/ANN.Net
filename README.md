@@ -20,6 +20,27 @@ C# implementation of standart deep neural network, with different types of neuro
   </p>
 <br>
 
+## Free-form graphs (NEAT)
+
+`NetworkFactory.BuildGraph` builds a feed-forward network with any acyclic topology, such as the
+phenotype of a NEAT genome. Node ids become neuron ids, connection ids let you read the weights back after
+training. Disabled connections and neurons that are not on a path from an input to an output are left out.
+
+```csharp
+IGraphNetwork network = NetworkFactory.BuildGraph(new GraphNetworkSettings
+{
+    Nodes = { new GraphNode(0, NodeType.INPUT), new GraphNode(1, NodeType.BIAS),
+              new GraphNode(2, NodeType.HIDDEN), new GraphNode(3, NodeType.OUTPUT) },
+    Connections = { new GraphConnection(0, 0, 2, 1.5f), new GraphConnection(1, 2, 3, -2f),
+                    new GraphConnection(2, 0, 3, 0.5f), new GraphConnection(3, 1, 3, 0.1f) },
+    HiddenActivationType = ActivationTypes.Sigmoid,
+    OutputActivationType = ActivationTypes.Sigmoid
+});
+
+Quad[] output = network.Propagate(0.7f);
+IReadOnlyDictionary<uint, Quad> weights = network.ConnectionWeights;
+```
+
 ## Transformer
 
 `NetworkFactory.BuildTransformer` builds an encoder-only transformer that maps a

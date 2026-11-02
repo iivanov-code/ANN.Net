@@ -61,6 +61,15 @@ namespace ANN.Net
             return ffn;
         }
 
+        /// <summary>
+        /// Builds a feed-forward network with an arbitrary acyclic topology, such as the phenotype of a NEAT genome.
+        /// Disabled connections and every neuron that is not on a path from an input to an output are left out
+        /// </summary>
+        public static IGraphNetwork BuildGraph(GraphNetworkSettings settings)
+        {
+            return GraphNetwork.Build(settings);
+        }
+
         public static INetwork BuildRNN(NetworkSettings settings, HiddenLayerSettings hiddenSettings)
         {
             Network rnn = new Network(settings);
