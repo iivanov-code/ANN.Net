@@ -56,6 +56,24 @@ NetworkSerializer.Save(network, stream);
 IGraphNetwork graph = NetworkSerializer.Load<IGraphNetwork>(stream);
 ```
 
+## ONNX export
+
+`OnnxExporter` writes networks from `BuildFFN` and `BuildGraph` (without recurrent connections) as
+ONNX models (opset 13) that compute the same values as `Propagate`, including input normalization and
+the output soft-max. Run them with ONNX Runtime or any other ONNX tool, from any language. ONNX keeps
+only the inference graph; use `NetworkSerializer` to save a network you want to keep training.
+
+```csharp
+OnnxExporter.Export(network, @"C:\models\my-network.onnx");    // input "input" [batch, inputs], output "output" [batch, outputs]
+OnnxExporter.Export(network, path, new OnnxExportOptions { InputName = "features", OutputName = "scores" });
+```
+
+```python
+import onnxruntime as ort, numpy as np
+session = ort.InferenceSession("my-network.onnx")
+outputs = session.run(None, {"input": np.array([[0.5, -1.0]], dtype=np.float32)})[0]
+```
+
 ## Transformer
 
 `NetworkFactory.BuildTransformer` builds an encoder-only transformer that maps a

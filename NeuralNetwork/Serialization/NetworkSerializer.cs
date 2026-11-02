@@ -116,7 +116,7 @@ namespace ANN.Net
             throw new InvalidDataException($"The file holds a {network.GetType().Name}, which is not a {typeof(TNetwork).Name}");
         }
 
-        private static NetworkDocument ToDocument(INetwork network)
+        internal static NetworkDocument ToDocument(INetwork network)
         {
             Network layered;
             NetworkKind kind;
