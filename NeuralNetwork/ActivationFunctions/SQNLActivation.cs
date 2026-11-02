@@ -39,21 +39,17 @@ namespace ANN.Net.ActivationFunctions
 
         public Quad Derivative(Quad x)
         {
-            if (x > 2)
+            if (x > 2 || x < -2)
             {
-                return 1 + x / 2;
+                return 0; // the function is flat outside [-2, 2]
             }
-            else if (x >= 0 && x <= 2)
+            else if (x >= 0)
             {
-                return 1 - x / 2;
+                return 1 - (x / 2);
             }
-            else if (x >= -2 && x < 0)
+            else
             {
-                return 1 + x / 2;
-            }
-            else// if (x < -2)
-            {
-                return 1 - x / 2;
+                return 1 + (x / 2);
             }
         }
     }

@@ -11,15 +11,19 @@ namespace ANN.Net.ActivationFunctions
 
         public Quad Activation(ref Quad x)
         {
-            //return (Quad)(x / (1 + Math.Exp(-x)));
-            return (Quad)(x / (1 + Math.Exp(x) - x));
+            // x * sigmoid(x)
+            return (Quad)(x / (1 + Math.Exp(-x)));
         }
 
-        //Derivative of Swish is Swish(x) + sigmoid(x) * (1 - Swish(x))
+        /// <summary>
+        /// swish(x) + sigmoid(x) * (1 - swish(x))
+        /// </summary>
         public Quad Derivative(Quad x)
         {
-            //return (Quad)(Activation(ref x) + (1 / (1 + Math.Exp(-x))) * (1 - Activation(ref x)));
-            return (Quad)(1 / Math.Exp(x) - 1);
+            double value = x;
+            double sigmoid = 1 / (1 + Math.Exp(-value));
+            double swish = value * sigmoid;
+            return (Quad)(swish + (sigmoid * (1 - swish)));
         }
     }
 }

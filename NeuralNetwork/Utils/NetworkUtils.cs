@@ -105,6 +105,27 @@ namespace ANN.Net.Utils
                 case BinaryStepActivation _:
                     return ActivationTypes.BinaryRELU;
 
+                case GaussianActivation _:
+                    return ActivationTypes.Gaussian;
+
+                case SinusoidActivation _:
+                    return ActivationTypes.Sinusoid;
+
+                case SoftSignActivation _:
+                    return ActivationTypes.SoftSign;
+
+                case SQNLActivation _:
+                    return ActivationTypes.SQNL;
+
+                case ISRUActivation _:
+                    return ActivationTypes.ISRU;
+
+                case GELUActivation _:
+                    return ActivationTypes.GELU;
+
+                case SwishActivation _:
+                    return ActivationTypes.SWISH;
+
                 default:
                     throw new ArgumentException("Invalid argument", nameof(neuron.Function));
             }
@@ -160,6 +181,27 @@ namespace ANN.Net.Utils
 
                 case ActivationTypes.Identity:
                     return IdentityActivation.Instance;
+
+                case ActivationTypes.Gaussian:
+                    return GaussianActivation.Instance;
+
+                case ActivationTypes.Sinusoid:
+                    return SinusoidActivation.Instance;
+
+                case ActivationTypes.SoftSign:
+                    return SoftSignActivation.Instance;
+
+                case ActivationTypes.SQNL:
+                    return SQNLActivation.Instance;
+
+                case ActivationTypes.ISRU:
+                    return ISRUActivation.Instance;
+
+                case ActivationTypes.GELU:
+                    return GELUActivation.Instance;
+
+                case ActivationTypes.SWISH:
+                    return SwishActivation.Instance;
 
                 default:
                     throw new ArgumentException("Invalid argument", nameof(type));

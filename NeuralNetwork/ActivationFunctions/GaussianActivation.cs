@@ -15,12 +15,13 @@ namespace ANN.Net.ActivationFunctions
 
         public Quad Activation(ref Quad x)
         {
-            return (Quad)Math.Pow(Math.E, Math.Pow(-x, 2));
+            return (Quad)Math.Exp(-(double)x * x);
         }
 
         public Quad Derivative(Quad x)
         {
-            return -2 * x * Activation(ref x);
+            double value = x;
+            return (Quad)(-2 * value * Math.Exp(-value * value));
         }
     }
 }
