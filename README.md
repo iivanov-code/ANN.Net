@@ -1,4 +1,13 @@
-﻿# ANN.Net Artificial Neural Network
+## License
+
+Copyright (C) 2021-2026 Ivelin Kirilov Ivanov
+
+ANN.Net is licensed under the [GNU General Public License v3.0](LICENSE).
+You may use, modify and redistribute it, provided that any distributed
+modifications or derivative works are also released under GPLv3 with
+source code made available.
+
+ # ANN.Net Artificial Neural Network
 C# implementation of standart deep neural network, with different types of neuro activation functions.
 
 
