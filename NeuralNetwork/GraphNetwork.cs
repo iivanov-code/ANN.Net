@@ -33,6 +33,18 @@ namespace ANN.Net
             this.hiddenNodeIds = hiddenNodeIds;
         }
 
+        internal Network Network => network;
+
+        internal IReadOnlyDictionary<uint, ActiveSynapse> Synapses => synapses;
+
+        /// <summary>
+        /// Wraps a network that was rebuilt from a file
+        /// </summary>
+        internal static GraphNetwork FromNetwork(Network network, Dictionary<uint, ActiveSynapse> synapses, List<uint> hiddenNodeIds)
+        {
+            return new GraphNetwork(network, synapses, hiddenNodeIds);
+        }
+
         public Quad[] Values => network.Values;
 
         public Quad[] Errors => network.Errors;

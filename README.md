@@ -41,6 +41,21 @@ Quad[] output = network.Propagate(0.7f);
 IReadOnlyDictionary<uint, Quad> weights = network.ConnectionWeights;
 ```
 
+## Saving and loading
+
+Networks from `NetworkFactory.BuildFFN` and `NetworkFactory.BuildGraph` are saved as JSON (`.ann` files)
+and loaded back with the same topology, weights, activations, optimizer types, learning rates, loss,
+normalization and soft-max settings. Optimizer internal state (such as Adam moments) is not saved.
+
+```csharp
+network.Save(@"C:\models", "my-network");                    // writes C:\models\my-network.ann
+INetwork loaded = ANNetwork.Load(@"C:\models\my-network.ann");
+
+// or with streams / a known network type
+NetworkSerializer.Save(network, stream);
+IGraphNetwork graph = NetworkSerializer.Load<IGraphNetwork>(stream);
+```
+
 ## Transformer
 
 `NetworkFactory.BuildTransformer` builds an encoder-only transformer that maps a

@@ -99,6 +99,12 @@ namespace ANN.Net.Utils
                 case IdentityActivation _:
                     return ActivationTypes.Identity;
 
+                case LeakyRELUActivation _:
+                    return ActivationTypes.LeakyRELU;
+
+                case BinaryStepActivation _:
+                    return ActivationTypes.BinaryRELU;
+
                 default:
                     throw new ArgumentException("Invalid argument", nameof(neuron.Function));
             }

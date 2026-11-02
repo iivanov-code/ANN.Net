@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Models;
@@ -34,7 +35,14 @@ namespace ANN.Net
             this.applySoftMax = settings.OutputApplySoftMax;
             this.Optimizers = new List<LearningRateOptimizer>();
             this.lossFunction = NetworkUtils.GetLossFunction(settings.LossType);
+            this.LossType = settings.LossType;
         }
+
+        internal LossFunctionTypes LossType { get; }
+
+        internal bool ShouldNormalize => shouldNormalize;
+
+        internal bool ApplySoftMax => applySoftMax;
 
         public Quad[] Values
         {

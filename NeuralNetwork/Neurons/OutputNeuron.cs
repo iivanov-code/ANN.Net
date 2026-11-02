@@ -18,6 +18,11 @@ namespace ANN.Net.Neurons
 
         protected override bool ShouldActivate => this.shouldActivate;
 
+        /// <summary>
+        /// Whether the activation function is applied to the output (it is not when the network applies soft-max)
+        /// </summary>
+        internal bool ApplyActivation => this.shouldActivate;
+
         public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
             FeedbackError(errorSignal);
