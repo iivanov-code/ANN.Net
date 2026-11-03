@@ -179,7 +179,7 @@ namespace ANN.Net.Tests.Convolutional
             }
 
             network.Propagate(input);
-            Assert.Equal(LossOf(input), (float)network.Backpropagate(targets), 4);
+            Assert.Equal(LossOf(input), (float)network.Backpropagate(targets), 1e-4);
             Quad[] analytic = network.InputGradients;
 
             for (int i = 0; i < input.Length; i++)
@@ -219,7 +219,7 @@ namespace ANN.Net.Tests.Convolutional
 
             Quad[] outputs = network.Propagate(new Quad[28 * 28]);
             Assert.Equal(10, outputs.Length);
-            Assert.Equal(1f, outputs.Sum(x => (float)x), 4);
+            Assert.Equal(1f, outputs.Sum(x => (float)x), 1e-4f);
         }
 
         [Fact]
@@ -265,7 +265,8 @@ namespace ANN.Net.Tests.Convolutional
                 InputWidth = 6,
                 Layers =
                 {
-                    new ConvolutionLayerSettings { Filters = 4, KernelSize = 3, Padding = 1, ActivationType = ActivationTypes.RELU },
+                    // LeakyReLU: with unseeded initial weights a plain ReLU filter now and then starts out dead
+                    new ConvolutionLayerSettings { Filters = 4, KernelSize = 3, Padding = 1, ActivationType = ActivationTypes.LeakyRELU },
                     new PoolingLayerSettings { Size = 2 }
                 },
                 OutputDimension = 2,

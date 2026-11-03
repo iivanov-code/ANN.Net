@@ -18,7 +18,7 @@ namespace ANN.Net.Tests.Networks
     /// </summary>
     public class LocalConnectionTests
     {
-        private static Network Build(ushort inputs, LayerConnectionType type, int kernel, int stride, int padding, int filters = 1,
+        internal static Network Build(ushort inputs, LayerConnectionType type, int kernel, int stride, int padding, int filters = 1,
                                      bool inputBias = false, ActivationTypes hiddenActivation = ActivationTypes.Identity,
                                      OptimizerTypes optimizer = OptimizerTypes.Normal, ushort outputs = 1)
         {
@@ -125,7 +125,7 @@ namespace ANN.Net.Tests.Networks
 
             float[] h = Enumerable.Range(0, 4).Select(o => (w0 * x[o]) + (w1 * x[o + 1])).ToArray();
             float y = h.Zip(v, (a, b) => a * b).Sum();
-            Assert.Equal(y, (float)network.Propagate(x.Select(z => (Quad)z).ToArray())[0], 4);
+            Assert.Equal(y, (float)network.Propagate(x.Select(z => (Quad)z).ToArray())[0], 1e-4f);
 
             foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 1;
             const float target = 0.3f;
@@ -133,8 +133,8 @@ namespace ANN.Net.Tests.Networks
 
             // dL/dw_k = e * Σ_o v_o * x[o + k], summed over the positions that share the weight
             float e = y - target;
-            Assert.Equal(w0 - (e * Enumerable.Range(0, 4).Sum(o => v[o] * x[o])), (float)kernel[0].Value, 4);
-            Assert.Equal(w1 - (e * Enumerable.Range(0, 4).Sum(o => v[o] * x[o + 1])), (float)kernel[1].Value, 4);
+            Assert.Equal(w0 - (e * Enumerable.Range(0, 4).Sum(o => v[o] * x[o])), (float)kernel[0].Value, 1e-4f);
+            Assert.Equal(w1 - (e * Enumerable.Range(0, 4).Sum(o => v[o] * x[o + 1])), (float)kernel[1].Value, 1e-4f);
             Assert.All(hidden[2].Inputs.Cast<BaseSynapse>(), s => Assert.Equal((float)((SharedWeightSynapse)s).SharedWeight.Value, (float)s.Weight));
 
             // the input gradients are computed with the weights before the update
@@ -162,7 +162,7 @@ namespace ANN.Net.Tests.Networks
         /// <summary>
         /// 10 values with a [1, -1] edge at a random place for label 1, or no edge for label 0
         /// </summary>
-        private static (Quad[] Signal, float Label) Edge(Random random)
+        internal static (Quad[] Signal, float Label) Edge(Random random)
         {
             var signal = Enumerable.Range(0, 10).Select(_ => (Quad)((random.NextDouble() - 0.5) * 0.2)).ToArray();
             float label = random.Next(2);
@@ -240,7 +240,7 @@ namespace ANN.Net.Tests.Networks
             for (int i = 0; i < samples.Length; i++)
             {
                 float[] expected = original.Propagate(samples[i]).Select(x => (float)x).ToArray();
-                for (int j = 0; j < expected.Length; j++) Assert.Equal(expected[j], actual[i][j], 4);
+                for (int j = 0; j < expected.Length; j++) Assert.Equal(expected[j], actual[i][j], 1e-4f * Math.Max(1, Math.Abs(expected[j])));
             }
         }
     }

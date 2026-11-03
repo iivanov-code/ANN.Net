@@ -224,6 +224,9 @@ namespace ANN.Net.Utils
                 case OptimizerTypes.Nadam:
                     return new Nadam();
 
+                case OptimizerTypes.AmsGrad:
+                    return new AmsGrad();
+
                 case OptimizerTypes.RMSprop:
                     return new RMSprop();
 
@@ -250,6 +253,9 @@ namespace ANN.Net.Utils
 
                 case Nadam _:
                     return OptimizerTypes.Nadam;
+
+                case AmsGrad _:
+                    return OptimizerTypes.AmsGrad;
 
                 case AdaMax _:
                     return OptimizerTypes.AdaMax;

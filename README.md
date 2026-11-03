@@ -20,6 +20,25 @@ C# implementation of standart deep neural network, with different types of neuro
   </p>
 <br>
 
+## Optimizers
+
+Every trainable value owns an optimizer of the network's `OptimizerType`. Learning rates start at 0, so set them
+before training (`network.Optimizers`):
+
+| `OptimizerTypes` | Update | Typical learning rate |
+|---|---|---|
+| `Normal` | plain gradient descent | 0.01 – 0.1 |
+| `Momentum` | classical momentum (β = 0.9) | 0.01 |
+| `Nesterov` | Nesterov momentum, PyTorch form (β = 0.9) | 0.01 |
+| `Adam` | Adam (β1 = 0.9, β2 = 0.999, ε = 1e-8) | 0.001 – 0.01 |
+| `AdaMax` | Adam with the infinity norm | about twice the Adam rate |
+| `Nadam` | Adam with Nesterov momentum | 0.001 – 0.01 |
+| `AmsGrad` | Adam with the largest squared average so far | 0.001 – 0.01 |
+| `RMSprop` | moving average of squared gradients (ρ = 0.9) | 0.001 – 0.005 |
+
+The tests check every optimizer against its published update rule and train a layered network, a graph network, a
+1-D convolutional layered network, a convolutional network and a transformer with each of them.
+
 ## Convolutional networks
 
 `NetworkFactory.BuildConvolutional` builds a convolutional network from convolution, pooling and dense layers,
