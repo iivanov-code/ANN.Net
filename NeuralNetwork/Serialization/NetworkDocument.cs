@@ -38,6 +38,11 @@ namespace ANN.Net.Serialization
         /// Every synapse, in the order of the output synapses of the neurons
         /// </summary>
         public List<SynapseDocument> Synapses { get; set; } = new List<SynapseDocument>();
+
+        /// <summary>
+        /// Layers of a <see cref="NetworkKind.Convolutional"/> network
+        /// </summary>
+        public ConvolutionalDocument Convolutional { get; set; }
     }
 
     internal enum NetworkKind
@@ -50,7 +55,12 @@ namespace ANN.Net.Serialization
         /// <summary>
         /// Free-form network from <c>NetworkFactory.BuildGraph</c>
         /// </summary>
-        Graph = 1
+        Graph = 1,
+
+        /// <summary>
+        /// Convolutional network from <c>NetworkFactory.BuildConvolutional</c>; stored in <see cref="NetworkDocument.Convolutional"/>
+        /// </summary>
+        Convolutional = 2
     }
 
     internal sealed class NeuronDocument

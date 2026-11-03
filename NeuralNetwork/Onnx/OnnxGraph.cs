@@ -20,6 +20,7 @@ namespace ANN.Net.Onnx
         private const int AttributeFloat = 1;
         private const int AttributeInt = 2;
         private const int AttributeTensor = 4;
+        private const int AttributeInts = 7;
 
         private readonly List<Action<ProtoWriter>> nodes = new List<Action<ProtoWriter>>();
         private readonly List<Action<ProtoWriter>> initializers = new List<Action<ProtoWriter>>();
@@ -67,6 +68,16 @@ namespace ANN.Net.Onnx
         public static Action<ProtoWriter> IntAttribute(string name, long value)
         {
             return w => w.Message(5, a => a.String(1, name).Int64(3, value).Int64(20, AttributeInt));
+        }
+
+        public static Action<ProtoWriter> IntsAttribute(string name, params long[] values)
+        {
+            return w => w.Message(5, a =>
+            {
+                a.String(1, name);
+                foreach (long value in values) a.Int64(8, value);
+                a.Int64(20, AttributeInts);
+            });
         }
 
         public static Action<ProtoWriter> FloatAttribute(string name, float value)

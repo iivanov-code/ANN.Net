@@ -20,6 +20,49 @@ C# implementation of standart deep neural network, with different types of neuro
   </p>
 <br>
 
+## Convolutional networks
+
+`NetworkFactory.BuildConvolutional` builds a convolutional network from convolution, pooling and dense layers,
+followed by a dense output layer. An image goes in as a flat array of channels × height × width values in channel,
+row, column order (as in NCHW).
+
+```csharp
+IConvolutionalNetwork cnn = NetworkFactory.BuildConvolutional(new ConvolutionalNetworkSettings
+{
+    InputChannels = 1,
+    InputHeight = 28,
+    InputWidth = 28,
+    Layers =
+    {
+        new ConvolutionLayerSettings { Filters = 8, KernelSize = 3, Padding = 1, ActivationType = ActivationTypes.RELU },
+        new PoolingLayerSettings { Type = PoolingType.Max, Size = 2 },
+        new ConvolutionLayerSettings { Filters = 16, KernelSize = 3, Stride = 1 },
+        new PoolingLayerSettings { Size = 2 },
+        new DenseLayerSettings { NeuronsCount = 32, ActivationType = ActivationTypes.RELU }
+    },
+    OutputDimension = 10,
+    OutputApplySoftMax = true,           // trained with cross entropy; otherwise the squared error is used
+    OptimizerType = OptimizerTypes.Adam
+});
+
+foreach (LearningRateOptimizer optimizer in cnn.Optimizers)
+{
+    optimizer.LearningRate = 0.001f;
+}
+
+Quad[] probabilities = cnn.Propagate(image);       // 784 values
+Quad loss = cnn.Backpropagate(oneHotTarget);       // trains on that image
+```
+
+- **Convolution layers** take a number of filters, a kernel size (`KernelSize`, or `KernelHeight` and `KernelWidth`),
+  a stride, zero padding (smaller than the kernel) and an activation.
+- **Pooling layers** take the max or the average over `Size` × `Size` windows, with a stride that defaults to `Size`.
+- **Dense layers** flatten their input and may only be followed by other dense layers.
+
+Every weight and bias owns an optimizer of `OptimizerType`, as in the transformer. Convolutional networks can be
+saved and loaded like the other networks (`Save`, `ANNetwork.Load`, `NetworkSerializer`) and exported to ONNX
+(`OnnxExporter`), where they become `Conv`, `MaxPool` / `AveragePool`, `Flatten`, `MatMul` and `Softmax` operators.
+
 ## Free-form graphs (NEAT)
 
 `NetworkFactory.BuildGraph` builds a feed-forward network with any acyclic topology, such as the

@@ -70,6 +70,14 @@ namespace ANN.Net
             return GraphNetwork.Build(settings);
         }
 
+        /// <summary>
+        /// Builds a convolutional network: convolution, pooling and dense layers followed by a dense output layer
+        /// </summary>
+        public static IConvolutionalNetwork BuildConvolutional(ConvolutionalNetworkSettings settings)
+        {
+            return new Convolutional.ConvolutionalNetwork(settings);
+        }
+
         public static INetwork BuildRNN(NetworkSettings settings, HiddenLayerSettings hiddenSettings)
         {
             Network rnn = new Network(settings);

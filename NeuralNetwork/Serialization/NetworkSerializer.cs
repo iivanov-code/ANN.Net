@@ -20,8 +20,8 @@ using ANN.Net.Utils;
 namespace ANN.Net
 {
     /// <summary>
-    /// Saves networks to JSON and loads them back. Supports the networks of <see cref="NetworkFactory.BuildFFN(NetworkSettings, RecurrentLayerSettings)"/>
-    /// and <see cref="NetworkFactory.BuildGraph"/>: topology, weights, activations, optimizer types and learning rates,
+    /// Saves networks to JSON and loads them back. Supports the networks of <see cref="NetworkFactory.BuildFFN(NetworkSettings, RecurrentLayerSettings)"/>,
+    /// <see cref="NetworkFactory.BuildGraph"/> and <see cref="NetworkFactory.BuildConvolutional"/>: topology, weights, activations, optimizer types and learning rates,
     /// loss, normalization and soft-max. The internal state of the optimizers (Adam moments and the like) is not saved,
     /// so training continues as with freshly created optimizers
     /// </summary>
@@ -124,6 +124,15 @@ namespace ANN.Net
 
             switch (network)
             {
+                case Convolutional.ConvolutionalNetwork convolutional:
+                    return new NetworkDocument
+                    {
+                        Format = FormatName,
+                        Version = FormatVersion,
+                        Kind = NetworkKind.Convolutional,
+                        Convolutional = ConvolutionalSerializer.ToDocument(convolutional)
+                    };
+
                 case Network n:
                     layered = n;
                     kind = NetworkKind.Layered;
@@ -254,6 +263,9 @@ namespace ANN.Net
                 throw new InvalidDataException("The file is not an ANN.Net network");
             if (document.Version != FormatVersion)
                 throw new InvalidDataException($"Unsupported network file version {document.Version}");
+
+            if (document.Kind == NetworkKind.Convolutional)
+                return ConvolutionalSerializer.FromDocument(document.Convolutional);
 
             List<NeuronDocument> neuronDocuments = document.Neurons ?? new List<NeuronDocument>();
             List<SynapseDocument> synapseDocuments = document.Synapses ?? new List<SynapseDocument>();
