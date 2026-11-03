@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
@@ -141,13 +142,16 @@ namespace ANN.Net
             return new HiddenNeuron(activationType, id);
         }
 
+        /// <param name="fanIn">Number of inputs of <paramref name="output"/>, for Xavier initialization; when 0 the
+        /// neurons count of the layer is used</param>
         public IOptimizer ConnectAxon(INeuron input,
                                       INeuron output,
                                       IUniqueIdentityGenerator identityGenerator,
                                       CommonLayerSettings settings,
                                       ICollection<LearningRateOptimizer> optimizers,
                                       bool isConnectionActive = true,
-                                      bool recurrentConnection = false)
+                                      bool recurrentConnection = false,
+                                      int fanIn = 0)
         {
             Quad initialWeight;
             switch (settings.InitializationType)
@@ -157,7 +161,7 @@ namespace ANN.Net
                     break;
 
                 case WeightInitType.Xavier:
-                    initialWeight = NetworkUtils.GlorotWeight(settings.NeuronsCount, settings.NeuronsCount);
+                    initialWeight = NetworkUtils.GlorotWeight(fanIn > 0 ? fanIn : settings.NeuronsCount, settings.NeuronsCount);
                     break;
 
                 default:
@@ -195,53 +199,167 @@ namespace ANN.Net
             return optimizer;
         }
 
+        /// <summary>
+        /// 1-D convolution over the previous layer (without its bias neuron): output position o of filter f receives the
+        /// inputs o * stride - padding + k for every kernel index k inside the signal, through the filter's shared kernel
+        /// weights. Neurons are ordered filter by filter. A bias neuron of the previous layer feeds every neuron through
+        /// one shared bias weight per filter
+        /// </summary>
         private ILayer<T> ConvolutionalConnectLayers<T>(ILayer<INeuron> prevLayer,
                                                         IUniqueIdentityGenerator identityGenerator,
-                                                        CommonLayerSettings settings,
+                                                        HiddenLayerSettings settings,
                                                         ICollection<LearningRateOptimizer> optimizers,
                                                         Func<T> neuronConstructor)
                        where T : class, INeuron
         {
-            var layer = new Layer<T>(prevLayer.Count - 1);
+            var (signal, bias) = SplitBias(prevLayer);
+            int kernel = settings.KernelSize, stride = settings.Stride, padding = settings.Padding;
+            ValidateKernel(settings);
+            if (signal.Count + (2 * padding) < kernel)
+                throw new ArgumentException($"A kernel of {kernel} does not fit {signal.Count} inputs with padding {padding}", nameof(settings));
 
-            for (int i = 1; i < prevLayer.Count - 1; i++)
+            int positions = ((signal.Count + (2 * padding) - kernel) / stride) + 1;
+            var layer = new Layer<T>(settings.FiltersCount * positions);
+
+            for (int f = 0; f < settings.FiltersCount; f++)
             {
-                var neuron = neuronConstructor();
-                layer.Add(neuron);
+                SharedWeight[] weights = CreateKernel(kernel, kernel, settings, optimizers);
+                SharedWeight biasWeight = bias == null ? null : CreateSharedWeight(0, settings, optimizers);
 
-                for (int j = i - 1; j < i + 1; j++)
+                for (int o = 0; o < positions; o++)
                 {
-                    ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
+                    T neuron = neuronConstructor();
+                    layer.Add(neuron);
+
+                    for (int k = 0; k < kernel; k++)
+                    {
+                        int input = (o * stride) - padding + k;
+                        if (input >= 0 && input < signal.Count)
+                        {
+                            ConnectShared(signal[input], neuron, identityGenerator, weights[k]);
+                        }
+                    }
+
+                    if (bias != null) ConnectShared(bias, neuron, identityGenerator, biasWeight);
                 }
             }
 
-            ConnectAxon(prevLayer[0], layer[0], identityGenerator, settings, optimizers);
-            ConnectAxon(prevLayer[prevLayer.Count - 1], layer[layer.Count - 1], identityGenerator, settings, optimizers);
-
+            AddBiasNeuron(layer, settings);
             return layer;
         }
 
+        /// <summary>
+        /// 1-D transposed convolution: input i of the previous layer (without its bias neuron) adds to the outputs
+        /// i * stride - padding + k of filter f through the filter's shared kernel weights. The output has
+        /// (inputs - 1) * stride - 2 * padding + kernel positions per filter
+        /// </summary>
         private ILayer<T> DeconvolutionalConnectLayers<T>(ILayer<INeuron> prevLayer,
                                                           IUniqueIdentityGenerator identityGenerator,
-                                                          CommonLayerSettings settings,
+                                                          HiddenLayerSettings settings,
                                                           ICollection<LearningRateOptimizer> optimizers,
                                                           Func<T> neuronConstructor)
                        where T : class, INeuron
         {
-            var layer = new Layer<T>(prevLayer.Count + 1);
+            var (signal, bias) = SplitBias(prevLayer);
+            int kernel = settings.KernelSize, stride = settings.Stride, padding = settings.Padding;
+            ValidateKernel(settings);
+            if (stride > kernel)
+                throw new ArgumentException("The stride of a deconvolution must not exceed the kernel, or some outputs would get no input", nameof(settings));
 
-            for (int i = 0; i < prevLayer.Count; i++)
+            int positions = ((signal.Count - 1) * stride) - (2 * padding) + kernel;
+            if (positions < 1)
+                throw new ArgumentException($"The padding of {padding} removes the whole output", nameof(settings));
+
+            var layer = new Layer<T>(settings.FiltersCount * positions);
+
+            for (int f = 0; f < settings.FiltersCount; f++)
             {
-                var neuron = neuronConstructor();
-                layer.Add(neuron);
+                SharedWeight[] weights = CreateKernel(kernel, kernel, settings, optimizers);
+                SharedWeight biasWeight = bias == null ? null : CreateSharedWeight(0, settings, optimizers);
+                var outputs = new T[positions];
 
-                for (int j = i; j < i + 2; j++)
+                for (int o = 0; o < positions; o++)
                 {
-                    ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
+                    outputs[o] = neuronConstructor();
+                    layer.Add(outputs[o]);
+                }
+
+                for (int i = 0; i < signal.Count; i++)
+                {
+                    for (int k = 0; k < kernel; k++)
+                    {
+                        int output = (i * stride) - padding + k;
+                        if (output >= 0 && output < positions)
+                        {
+                            ConnectShared(signal[i], outputs[output], identityGenerator, weights[k]);
+                        }
+                    }
+                }
+
+                if (bias != null)
+                {
+                    foreach (T output in outputs) ConnectShared(bias, output, identityGenerator, biasWeight);
                 }
             }
 
+            AddBiasNeuron(layer, settings);
             return layer;
+        }
+
+        private static void ValidateKernel(HiddenLayerSettings settings)
+        {
+            if (settings.KernelSize < 1) throw new ArgumentException("The kernel must hold at least one weight", nameof(settings));
+            if (settings.Stride < 1) throw new ArgumentException("The stride must be at least 1", nameof(settings));
+            if (settings.FiltersCount < 1) throw new ArgumentException("At least one filter is required", nameof(settings));
+            if (settings.Padding < 0 || settings.Padding >= settings.KernelSize)
+                throw new ArgumentException("The padding must be at least 0 and smaller than the kernel, or some neurons would get no input", nameof(settings));
+        }
+
+        /// <summary>
+        /// The signal neurons of a layer and its bias neuron, if it has one
+        /// </summary>
+        private static (List<INeuron> Signal, INeuron Bias) SplitBias(ILayer<INeuron> layer)
+        {
+            var signal = layer.Where(x => x is not BiasNeuron).ToList();
+            if (signal.Count == 0) throw new ArgumentException("The previous layer has no neurons to convolve", nameof(layer));
+            return (signal, layer.FirstOrDefault(x => x is BiasNeuron));
+        }
+
+        private static SharedWeight[] CreateKernel(int size, int fanIn, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
+        {
+            var kernel = new SharedWeight[size];
+            for (int k = 0; k < size; k++)
+            {
+                Quad weight = settings.InitializationType == WeightInitType.Xavier ? NetworkUtils.GlorotWeight(fanIn, fanIn) : NetworkUtils.RandomWeight();
+                kernel[k] = CreateSharedWeight(weight, settings, optimizers);
+            }
+
+            return kernel;
+        }
+
+        private static SharedWeight CreateSharedWeight(Quad value, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers)
+        {
+            IOptimizer optimizer = NetworkUtils.GetOptimizer(settings.OptimizerType);
+            if (optimizer is LearningRateOptimizer learningRateOptimizer)
+            {
+                optimizers.Add(learningRateOptimizer);
+            }
+
+            return new SharedWeight(value, optimizer);
+        }
+
+        private static void ConnectShared(INeuron input, INeuron output, IUniqueIdentityGenerator identityGenerator, SharedWeight weight)
+        {
+            var synapse = new SharedWeightSynapse(input, output, identityGenerator, weight);
+            output.Inputs.Add(synapse);
+            input.Outputs.Add(synapse);
+        }
+
+        private static void AddBiasNeuron<T>(Layer<T> layer, CommonLayerSettings settings)
+            where T : class, INeuron
+        {
+            if (settings.HasBiasNeuron && new BiasNeuron(settings.ActivationType) is T bias)
+                layer.Add(bias);
         }
 
         private ILayer<T> StraightConnectLayer<T>(ILayer<INeuron> prevLayer,
@@ -269,6 +387,7 @@ namespace ANN.Net
         private ILayer<T> FullyConnectLayers<T>(IEnumerable<INeuron> prevLayer, IUniqueIdentityGenerator identityGenerator, CommonLayerSettings settings, ICollection<LearningRateOptimizer> optimizers, Func<T> neuronConstructor)
              where T : class, INeuron
         {
+            int fanIn = prevLayer.Count();
             var layer = new Layer<T>(settings.NeuronsCount);
 
             for (int i = 0; i < settings.NeuronsCount; i++)
@@ -277,7 +396,7 @@ namespace ANN.Net
                 layer.Add(neuron);
                 foreach (var inNeuron in prevLayer)
                 {
-                    ConnectAxon(inNeuron, neuron, identityGenerator, settings, optimizers);
+                    ConnectAxon(inNeuron, neuron, identityGenerator, settings, optimizers, fanIn: fanIn);
                 }
             }
 

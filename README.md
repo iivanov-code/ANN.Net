@@ -63,6 +63,29 @@ Every weight and bias owns an optimizer of `OptimizerType`, as in the transforme
 saved and loaded like the other networks (`Save`, `ANNetwork.Load`, `NetworkSerializer`) and exported to ONNX
 (`OnnxExporter`), where they become `Conv`, `MaxPool` / `AveragePool`, `Flatten`, `MatMul` and `Softmax` operators.
 
+### 1-D convolution in layered networks
+
+Hidden layers of `NetworkFactory.BuildFFN` can also be convolutional or deconvolutional (transposed convolution).
+They treat the neurons of the previous layer, without its bias neuron, as a 1-D signal, and every filter shares its
+kernel weights across all positions:
+
+```csharp
+var hidden = new RecurrentLayerSettings
+{
+    LayersCount = 1,
+    CellType = NeuronType.Normal,
+    PrevLayerConnectionType = LayerConnectionType.Convolutional,   // or Deconvolutional
+    KernelSize = 3,
+    Stride = 1,
+    Padding = 1,               // smaller than the kernel
+    FiltersCount = 4,          // the neurons count follows from these settings
+    ActivationType = ActivationTypes.RELU
+};
+```
+
+A bias neuron in the previous layer feeds every filter through one shared bias weight. Shared weights add up the
+gradients of all their positions, so they usually need a smaller learning rate than plain weights.
+
 ## Free-form graphs (NEAT)
 
 `NetworkFactory.BuildGraph` builds a feed-forward network with any acyclic topology, such as the

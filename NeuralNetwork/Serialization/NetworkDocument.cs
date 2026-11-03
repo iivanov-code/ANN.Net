@@ -39,6 +39,8 @@ namespace ANN.Net.Serialization
         /// </summary>
         public List<SynapseDocument> Synapses { get; set; } = new List<SynapseDocument>();
 
+        public List<SharedWeightDocument> SharedWeights { get; set; }
+
         /// <summary>
         /// Layers of a <see cref="NetworkKind.Convolutional"/> network
         /// </summary>
@@ -96,6 +98,24 @@ namespace ANN.Net.Serialization
         public float Weight { get; set; }
 
         public bool Recurrent { get; set; }
+
+        public OptimizerTypes Optimizer { get; set; }
+
+        public float? LearningRate { get; set; }
+
+        /// <summary>
+        /// Index in <see cref="NetworkDocument.SharedWeights"/> for a synapse that shares its weight; its own
+        /// <see cref="Weight"/>, <see cref="Optimizer"/> and <see cref="LearningRate"/> are then ignored
+        /// </summary>
+        public int? SharedWeight { get; set; }
+    }
+
+    /// <summary>
+    /// Weight used by several synapses (convolutional layers)
+    /// </summary>
+    internal sealed class SharedWeightDocument
+    {
+        public float Weight { get; set; }
 
         public OptimizerTypes Optimizer { get; set; }
 

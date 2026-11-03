@@ -120,7 +120,7 @@ namespace ANN.Net
         {
             Network layered;
             NetworkKind kind;
-            Dictionary<ActiveSynapse, uint> connectionIds = null;
+            Dictionary<BaseSynapse, uint> connectionIds = null;
 
             switch (network)
             {
@@ -141,7 +141,7 @@ namespace ANN.Net
                 case GraphNetwork graph:
                     layered = graph.Network;
                     kind = NetworkKind.Graph;
-                    connectionIds = graph.Synapses.ToDictionary(x => x.Value, x => x.Key);
+                    connectionIds = graph.Synapses.ToDictionary(x => (BaseSynapse)x.Value, x => x.Key);
                     break;
 
                 default:
@@ -189,7 +189,8 @@ namespace ANN.Net
 
             document.OutputLayer = AddLayer(layered.OutputNeurons, hiddenLayersCount + 1);
 
-            var synapseIndexes = new Dictionary<ActiveSynapse, int>(ReferenceEqualityComparer.Instance);
+            var synapseIndexes = new Dictionary<BaseSynapse, int>(ReferenceEqualityComparer.Instance);
+            var sharedIndexes = new Dictionary<SharedWeight, int>(ReferenceEqualityComparer.Instance);
 
             foreach (INeuron neuron in neurons)
             {
@@ -197,12 +198,11 @@ namespace ANN.Net
 
                 foreach (ISynapse synapse in neuron.Outputs ?? Enumerable.Empty<ISynapse>())
                 {
-                    ActiveSynapse active = AsActiveSynapse(synapse);
+                    BaseSynapse active = AsTrainableSynapse(synapse);
                     if (!indexes.TryGetValue(active.Output, out int to))
                         throw new NotSupportedException($"Neuron {neuron.ID} is connected to neuron {active.Output.ID}, which is not part of the network");
 
-                    synapseIndexes.Add(active, document.Synapses.Count);
-                    document.Synapses.Add(new SynapseDocument
+                    var synapseDocument = new SynapseDocument
                     {
                         Id = connectionIds?[active],
                         From = indexes[neuron],
@@ -211,7 +211,16 @@ namespace ANN.Net
                         Recurrent = kind == NetworkKind.Layered && layerOf[neuron] >= layerOf[active.Output],
                         Optimizer = active.Optimizer.GetOptimizerType(),
                         LearningRate = active.Optimizer is LearningRateOptimizer optimizer ? optimizer.LearningRate : null
-                    });
+                    };
+
+                    if (active is SharedWeightSynapse shared)
+                    {
+                        synapseDocument.SharedWeight = SharedIndex(shared.SharedWeight, document, sharedIndexes);
+                        synapseDocument.LearningRate = null;
+                    }
+
+                    synapseIndexes.Add(active, document.Synapses.Count);
+                    document.Synapses.Add(synapseDocument);
                 }
             }
 
@@ -220,7 +229,7 @@ namespace ANN.Net
                 if (neurons[i].Inputs == null) continue;
 
                 document.Neurons[i].Inputs = neurons[i].Inputs
-                    .Select(x => synapseIndexes.TryGetValue(AsActiveSynapse(x), out int index)
+                    .Select(x => synapseIndexes.TryGetValue(AsTrainableSynapse(x), out int index)
                         ? index
                         : throw new NotSupportedException($"Neuron {neurons[i].ID} has an input synapse from a neuron outside the network"))
                     .ToList();
@@ -250,9 +259,30 @@ namespace ANN.Net
             };
         }
 
-        private static ActiveSynapse AsActiveSynapse(ISynapse synapse)
+        private static int SharedIndex(SharedWeight weight, NetworkDocument document, Dictionary<SharedWeight, int> indexes)
         {
-            if (synapse != null && synapse.GetType() == typeof(ActiveSynapse)) return (ActiveSynapse)synapse;
+            if (!indexes.TryGetValue(weight, out int index))
+            {
+                document.SharedWeights ??= new List<SharedWeightDocument>();
+                index = document.SharedWeights.Count;
+                indexes.Add(weight, index);
+                document.SharedWeights.Add(new SharedWeightDocument
+                {
+                    Weight = weight.Value,
+                    Optimizer = weight.Optimizer.GetOptimizerType(),
+                    LearningRate = weight.Optimizer is LearningRateOptimizer optimizer ? optimizer.LearningRate : null
+                });
+            }
+
+            return index;
+        }
+
+        /// <summary>
+        /// Synapses with an own or a shared weight; other synapse types (sequence, remote) cannot be saved
+        /// </summary>
+        private static BaseSynapse AsTrainableSynapse(ISynapse synapse)
+        {
+            if (synapse != null && (synapse.GetType() == typeof(ActiveSynapse) || synapse is SharedWeightSynapse)) return (BaseSynapse)synapse;
 
             throw new NotSupportedException($"Saving a {synapse?.GetType().Name ?? "missing synapse"} is not supported");
         }
@@ -315,7 +345,12 @@ namespace ANN.Net
             };
 
             var ids = new IncrementalGenerator();
-            var synapses = new ActiveSynapse[synapseDocuments.Count];
+            var synapses = new ISynapse[synapseDocuments.Count];
+            SharedWeight[] sharedWeights = (document.SharedWeights ?? new List<SharedWeightDocument>())
+                .Select(x => x == null
+                    ? throw new InvalidDataException("A shared weight is missing")
+                    : new SharedWeight(x.Weight, CreateOptimizer(x.Optimizer, x.LearningRate, network.Optimizers)))
+                .ToArray();
 
             for (int i = 0; i < synapses.Length; i++)
             {
@@ -325,7 +360,17 @@ namespace ANN.Net
                 if (from.Outputs == null || to.Inputs == null)
                     throw new InvalidDataException($"Synapse {i} connects neurons that cannot be connected that way");
 
-                synapses[i] = new ActiveSynapse(from, to, ids, CreateOptimizer(synapse, network.Optimizers), synapse.Weight);
+                if (synapse.SharedWeight is int shared)
+                {
+                    if (shared < 0 || shared >= sharedWeights.Length)
+                        throw new InvalidDataException($"Synapse {i} refers to an unknown shared weight {shared}");
+
+                    synapses[i] = new SharedWeightSynapse(from, to, ids, sharedWeights[shared]);
+                }
+                else
+                {
+                    synapses[i] = new ActiveSynapse(from, to, ids, CreateOptimizer(synapse.Optimizer, synapse.LearningRate, network.Optimizers), synapse.Weight);
+                }
 
                 if (synapse.Recurrent) from.Outputs.AddRecurrent(synapses[i]);
                 else from.Outputs.Add(synapses[i]);
@@ -360,7 +405,9 @@ namespace ANN.Net
                     for (int i = 0; i < synapses.Length; i++)
                     {
                         uint id = synapseDocuments[i].Id ?? throw new InvalidDataException($"Synapse {i} of a graph network has no id");
-                        if (!connections.TryAdd(id, synapses[i]))
+                        if (synapses[i] is not ActiveSynapse own)
+                            throw new InvalidDataException($"Synapse {i} of a graph network shares its weight");
+                        if (!connections.TryAdd(id, own))
                             throw new InvalidDataException($"Duplicate connection id {id}");
                     }
 
@@ -391,17 +438,17 @@ namespace ANN.Net
             }
         }
 
-        private static IOptimizer CreateOptimizer(SynapseDocument synapse, ICollection<LearningRateOptimizer> optimizers)
+        private static IOptimizer CreateOptimizer(OptimizerTypes type, float? learningRate, ICollection<LearningRateOptimizer> optimizers)
         {
-            IOptimizer optimizer = NetworkUtils.GetOptimizer(synapse.Optimizer);
+            IOptimizer optimizer = NetworkUtils.GetOptimizer(type);
             if (optimizer is LearningRateOptimizer learningRateOptimizer)
             {
-                if (synapse.LearningRate.HasValue)
+                if (learningRate.HasValue)
                 {
-                    if (synapse.LearningRate < 0 || synapse.LearningRate > 1)
-                        throw new InvalidDataException($"Invalid learning rate {synapse.LearningRate}");
+                    if (learningRate < 0 || learningRate > 1)
+                        throw new InvalidDataException($"Invalid learning rate {learningRate}");
 
-                    learningRateOptimizer.LearningRate = synapse.LearningRate.Value;
+                    learningRateOptimizer.LearningRate = learningRate.Value;
                 }
 
                 optimizers.Add(learningRateOptimizer);
