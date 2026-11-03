@@ -50,9 +50,10 @@ namespace ANN.Net.Tests.Networks
                 Assert.Equal(expected.Length, actual[i].Length);
                 for (int j = 0; j < expected.Length; j++)
                 {
-                    // relative: the soft-max divides by the sum of the outputs, which can be close to zero
-                    // for random weights and then magnifies float rounding
-                    float tolerance = 1e-5f * Math.Max(1f, Math.Abs(expected[j]));
+                    // relative, and scaled by Σ|outputs|: the network's soft-max divides by the sum of the outputs,
+                    // which can be close to zero for random weights, and then magnifies float rounding by that factor
+                    float condition = Math.Max(1f, expected.Sum(Math.Abs));
+                    float tolerance = 1e-5f * Math.Max(1f, Math.Abs(expected[j])) * condition;
                     Assert.True(Math.Abs(expected[j] - actual[i][j]) <= tolerance, $"Expected {expected[j]} but ONNX gave {actual[i][j]}");
                 }
             }

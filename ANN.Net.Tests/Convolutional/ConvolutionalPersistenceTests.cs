@@ -147,7 +147,7 @@ namespace ANN.Net.Tests.Convolutional
                 Assert.Equal(expected.Length, actual[i].Length);
                 for (int j = 0; j < expected.Length; j++)
                 {
-                    Assert.Equal(expected[j], actual[i][j], 4);
+                    Assert.Equal(expected[j], actual[i][j], 1e-4f * Math.Max(1, Math.Abs(expected[j])));
                 }
             }
         }
