@@ -29,6 +29,7 @@ namespace ANN.Net.Convolutional
 
             Settings = settings;
             Optimizers = new List<LearningRateOptimizer>();
+            using IDisposable seed = Utils.NetworkUtils.SeedRandom(settings.Seed);
 
             var shape = new Shape(settings.InputChannels, settings.InputHeight, settings.InputWidth);
             bool dense = false;

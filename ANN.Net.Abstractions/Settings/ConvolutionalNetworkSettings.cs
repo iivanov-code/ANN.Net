@@ -34,6 +34,11 @@ namespace ANN.Net.Abstractions.Settings
         public OptimizerTypes OptimizerType { get; set; } = OptimizerTypes.Normal;
 
         public WeightInitType InitializationType { get; set; } = WeightInitType.Xavier;
+
+        /// <summary>
+        /// Seed of the initial weights; the same seed builds the same network. Null draws them from a shared random source
+        /// </summary>
+        public int? Seed { get; set; }
     }
 
     /// <summary>

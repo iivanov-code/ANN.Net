@@ -61,5 +61,10 @@ namespace ANN.Net.Abstractions.Settings
 
         [DefaultValue(WeightInitType.Xavier)]
         public WeightInitType InitializationType { get; set; }
+
+        /// <summary>
+        /// Seed of the initial weights; the same seed builds the same network. Null draws them from a shared random source
+        /// </summary>
+        public int? Seed { get; set; }
     }
 }

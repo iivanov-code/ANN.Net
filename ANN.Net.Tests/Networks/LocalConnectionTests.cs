@@ -26,6 +26,7 @@ namespace ANN.Net.Tests.Networks
             {
                 IdentityGenerator = new IncrementalGenerator(),
                 LossType = LossFunctionTypes.Squared,
+                Seed = 1,   // learning tests start from fixed weights, so they cannot fail by bad luck
                 InputSettings = new InputLayerSettings { NeuronsCount = inputs, ActivationType = ActivationTypes.Identity, HasBiasNeuron = inputBias },
                 OutputSettings = new OutputLayerSettings { NeuronsCount = outputs, ActivationType = ActivationTypes.Identity, OptimizerType = optimizer }
             },

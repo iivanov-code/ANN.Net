@@ -29,6 +29,7 @@ namespace ANN.Net.Transformers
 
             this.settings = settings;
             this.Optimizers = new List<LearningRateOptimizer>();
+            using IDisposable seed = Utils.NetworkUtils.SeedRandom(settings.Seed);
 
             this.inputProjection = new LinearProjection(settings.InputDimension,
                                                         settings.ModelDimension,

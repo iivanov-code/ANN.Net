@@ -271,7 +271,8 @@ namespace ANN.Net.Tests.Convolutional
                 },
                 OutputDimension = 2,
                 OutputApplySoftMax = true,
-                OptimizerType = optimizer
+                OptimizerType = optimizer,
+                Seed = 1   // learning tests start from fixed weights, so they cannot fail by bad luck
             });
 
             foreach (LearningRateOptimizer x in network.Optimizers) x.LearningRate = learningRate;

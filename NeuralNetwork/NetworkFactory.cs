@@ -28,6 +28,7 @@ namespace ANN.Net
         /// </summary>
         internal static INetwork BuildFFN(NetworkSettings settings, IEnumerable<INeuron> additionalInputs, RecurrentLayerSettings[] hiddenSettings)
         {
+            using System.IDisposable seed = Utils.NetworkUtils.SeedRandom(settings.Seed);
             Network ffn = new Network(settings);
             NetworkBuilder builder = NetworkBuilder.Create();
 

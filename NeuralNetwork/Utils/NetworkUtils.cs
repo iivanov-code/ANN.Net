@@ -60,7 +60,43 @@ namespace ANN.Net.Utils
         /// <see cref="Random.Shared"/> is safe to use from several threads at once, which a
         /// hand-made <see cref="Random"/> is not: concurrent calls can leave it returning zeros
         /// </summary>
-        internal static Random Rand => Random.Shared;
+        internal static Random Rand => scopedRandom.Value ?? Random.Shared;
+
+        private static readonly System.Threading.AsyncLocal<Random> scopedRandom = new System.Threading.AsyncLocal<Random>();
+
+        /// <summary>
+        /// Draws every random number of the current flow from a source seeded with <paramref name="seed"/> until the
+        /// returned scope is disposed, so a network built inside the scope gets reproducible initial weights. Does
+        /// nothing for a null seed. The scope follows the async flow, so networks built in parallel do not interfere
+        /// </summary>
+        internal static IDisposable SeedRandom(int? seed)
+        {
+            return seed.HasValue ? new RandomScope(new Random(seed.Value)) : RandomScope.None;
+        }
+
+        private sealed class RandomScope : IDisposable
+        {
+            public static readonly RandomScope None = new RandomScope();
+
+            private readonly Random previous;
+            private readonly bool active;
+
+            private RandomScope()
+            {
+            }
+
+            public RandomScope(Random random)
+            {
+                previous = scopedRandom.Value;
+                scopedRandom.Value = random;
+                active = true;
+            }
+
+            public void Dispose()
+            {
+                if (active) scopedRandom.Value = previous;
+            }
+        }
 
         internal static bool RandomBoolean()
         {

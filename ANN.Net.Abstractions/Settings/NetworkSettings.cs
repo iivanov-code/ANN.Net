@@ -18,5 +18,10 @@ namespace ANN.Net.Abstractions.Settings
 
         public bool OutputApplySoftMax { get; set; }
         public IUniqueIdentityGenerator IdentityGenerator { get; set; }
+
+        /// <summary>
+        /// Seed of the initial weights; the same seed builds the same network. Null draws them from a shared random source
+        /// </summary>
+        public int? Seed { get; set; }
     }
 }

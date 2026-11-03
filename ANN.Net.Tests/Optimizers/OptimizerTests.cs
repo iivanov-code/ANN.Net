@@ -14,7 +14,7 @@ namespace ANN.Net.Tests.Optimizers
 {
     /// <summary>
     /// Every optimizer against a double-precision reference of its published update rule, and training different
-    /// kinds of networks with every optimizer
+    /// kinds of networks with every optimizer. The networks start from seeded weights, so the results are reproducible
     /// </summary>
     public class OptimizerTests
     {
@@ -210,6 +210,7 @@ namespace ANN.Net.Tests.Optimizers
             {
                 IdentityGenerator = new IncrementalGenerator(),
                 LossType = LossFunctionTypes.Squared,
+                Seed = 1,
                 InputSettings = new InputLayerSettings { NeuronsCount = 2, ActivationType = ActivationTypes.Identity, HasBiasNeuron = true, OptimizerType = type },
                 OutputSettings = new OutputLayerSettings { NeuronsCount = 1, ActivationType = ActivationTypes.Identity, OptimizerType = type }
             },
@@ -324,7 +325,8 @@ namespace ANN.Net.Tests.Optimizers
                 UseCausalMask = true,
                 OutputApplySoftMax = true,
                 OptimizerType = type,
-                InitializationType = WeightInitType.Xavier
+                InitializationType = WeightInitType.Xavier,
+                Seed = 1
             });
             SetLearningRate(network.Optimizers, type == OptimizerTypes.Normal ? 0.05f : LearningRate(type));
 
