@@ -20,6 +20,28 @@ C# implementation of standart deep neural network, with different types of neuro
   </p>
 <br>
 
+## Compact networks for inference
+
+A trained network keeps an object for every neuron, synapse, layer and optimizer. `NetworkCompactor.Compact`
+copies it into flat weight arrays for inference:
+
+```csharp
+ICompactNetwork compact = NetworkCompactor.Compact(network);   // layered, graph or convolutional
+Quad[] outputs = compact.Propagate(inputs);                    // the same values as network.Propagate
+network = null;                                                // the original can now be freed
+```
+
+| Network | Memory | One propagation |
+|---|---|---|
+| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.6 ms |
+| ResNet-18, 224 × 224 | 555 MB → 47.6 MB | 7.9 s → 2.9 s |
+
+Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
+batch normalizations that follow a convolution are folded into it. Convolutional networks compute as with
+`Training = false`. A compact network is a snapshot: training the original later does not change it. It keeps no
+state between calls, so one copy can serve several threads at once. Recurrent networks and transformers cannot be
+compacted yet.
+
 ## Optimizers
 
 Every trainable value owns an optimizer of the network's `OptimizerType`. Learning rates start at 0, so set them

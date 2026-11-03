@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Compact;
 using ANN.Net.Onnx;
 using ANN.Net.Serialization;
 
@@ -70,130 +71,75 @@ namespace ANN.Net
         }
 
         /// <summary>
-        /// Evaluates the neurons depth by depth. All values computed so far live side by side in one
-        /// [batch, columns] tensor; every group of neurons with the same depth and activation gathers the columns
-        /// it reads, multiplies them by its weight matrix, adds the bias weights and appends its activations
+        /// ONNX operators of a <see cref="GraphPlan"/>: every level gathers the columns of its groups, multiplies them by
+        /// the group weights, adds the biases, activates and appends the results to the [batch, columns] tensor
         /// </summary>
         private sealed class Builder
         {
+            private readonly GraphPlan plan;
             private readonly NetworkDocument document;
             private readonly OnnxExportOptions options;
             private readonly OnnxGraph graph = new OnnxGraph();
-            private readonly List<(int From, float Weight)>[] incoming;
-            private readonly int[] column;
-            private readonly int?[] depth;
-            private readonly bool?[] fires;
             private string zeroColumn;
 
             public Builder(NetworkDocument document, OnnxExportOptions options)
             {
                 this.document = document;
                 this.options = options;
-
-                int count = document.Neurons.Count;
-                incoming = Enumerable.Range(0, count).Select(_ => new List<(int From, float Weight)>()).ToArray();
-                column = Enumerable.Repeat(-1, count).ToArray();
-                depth = new int?[count];
-                fires = new bool?[count];
-
-                foreach (SynapseDocument synapse in document.Synapses)
-                {
-                    if (synapse.Recurrent)
-                        throw new NotSupportedException("Networks with recurrent connections cannot be exported to ONNX");
-
-                    incoming[synapse.To].Add((synapse.From, synapse.Weight));
-                }
+                plan = GraphPlan.Create(document);
             }
-
-            private NodeType Type(int neuron) => document.Neurons[neuron].Type;
 
             public byte[] Build()
             {
-                List<int> inputs = document.InputLayer.Where(x => Type(x) == NodeType.INPUT).ToList();
-                if (inputs.Count == 0) throw new NotSupportedException("The network has no inputs");
+                string values = Inputs();
 
-                string values = Inputs(inputs);
-                int width = inputs.Count;
-
-                List<int> computed = Enumerable.Range(0, document.Neurons.Count)
-                                               .Where(x => Type(x) == NodeType.HIDDEN || Type(x) == NodeType.OUTPUT)
-                                               .Where(Fires)
-                                               .ToList();
-
-                foreach (var level in computed.GroupBy(Depth).OrderBy(x => x.Key))
+                foreach (IReadOnlyList<GraphPlan.NeuronGroup> level in plan.Levels)
                 {
                     var parts = new List<string> { values };
-                    foreach (var group in level.GroupBy(Activation))
+                    foreach (GraphPlan.NeuronGroup group in level)
                     {
-                        List<int> neurons = group.ToList();
-                        parts.Add(Activate(WeightedSum(values, neurons), group.Key));
-
-                        foreach (int neuron in neurons)
-                        {
-                            column[neuron] = width++;
-                        }
+                        parts.Add(OnnxActivations.Apply(graph, WeightedSum(values, group), group.Activation));
                     }
 
                     values = Concat(parts);
                 }
 
-                Outputs(values, width);
+                Outputs(values);
 
-                return graph.ToModel(options.GraphName, options.InputName, inputs.Count, options.OutputName, document.OutputLayer.Count,
-                                             $"Exported from an ANN.Net {document.Kind} network");
+                return graph.ToModel(options.GraphName, options.InputName, plan.InputCount, options.OutputName, plan.OutputColumns.Length,
+                                     $"Exported from an ANN.Net {document.Kind} network");
             }
 
             /// <summary>
             /// Input values, normalized and activated like the input neurons do
             /// </summary>
-            private string Inputs(List<int> inputs)
+            private string Inputs()
             {
                 string x = options.InputName;
 
-                if (document.ShouldNormalize)
+                if (plan.InputMinimum != null)
                 {
-                    if (document.MinMaxValues == null || document.MinMaxValues.Count < inputs.Count)
-                        throw new NotSupportedException("The network normalizes its inputs but has no min/max value for every input");
-
-                    float[] min = document.MinMaxValues.Take(inputs.Count).Select(v => v[0]).ToArray();
-                    float[] range = document.MinMaxValues.Take(inputs.Count).Select(v => v[1] - v[0]).ToArray();
-                    x = graph.Node("Sub", new[] { x, graph.FloatTensor("input_min", min, min.Length) });
-                    x = graph.Node("Div", new[] { x, graph.FloatTensor("input_range", range, range.Length) });
+                    x = graph.Node("Sub", new[] { x, graph.FloatTensor("input_min", plan.InputMinimum, plan.InputCount) });
+                    x = graph.Node("Div", new[] { x, graph.FloatTensor("input_range", plan.InputRange, plan.InputCount) });
                 }
 
-                ActivationTypes[] activations = inputs.Select(i => document.Neurons[i].Activation).ToArray();
-                if (activations.All(a => a == ActivationTypes.Identity))
-                {
-                    for (int i = 0; i < inputs.Count; i++) column[inputs[i]] = i;
-                    return x;
-                }
+                if (plan.InputGroups.Count == 0) return x;
 
-                var parts = new List<string>();
-                int width = 0;
-                foreach (var group in Enumerable.Range(0, inputs.Count).GroupBy(i => activations[i]))
-                {
-                    long[] indexes = group.Select(i => (long)i).ToArray();
-                    parts.Add(Activate(Gather(x, indexes), group.Key));
-                    foreach (int i in group) column[inputs[i]] = width++;
-                }
-
-                return Concat(parts);
+                return Concat(plan.InputGroups.Select(g => OnnxActivations.Apply(graph, Gather(x, g.Positions), g.Activation)).ToList());
             }
 
-            private void Outputs(string values, int width)
+            private void Outputs(string values)
             {
-                // an output without a complete set of inputs never fires in ANN.Net and keeps the value 0
-                long zero = -1;
-                if (document.OutputLayer.Exists(x => column[x] < 0))
+                int[] columns = plan.OutputColumns;
+                if (columns.Contains(-1))
                 {
                     values = Concat(new List<string> { values, ZeroColumn() });
-                    zero = width;
+                    columns = columns.Select(x => x < 0 ? plan.Width : x).ToArray();
                 }
 
-                long[] columns = document.OutputLayer.Select(x => column[x] < 0 ? zero : column[x]).ToArray();
                 string output = Gather(values, columns);
 
-                if (document.OutputApplySoftMax)
+                if (plan.DivideBySum)
                 {
                     // ANN.Net divides every output by the sum of all outputs
                     float[] ones = Enumerable.Repeat(1f, columns.Length).ToArray();
@@ -204,93 +150,23 @@ namespace ANN.Net
                 graph.Node("Identity", new[] { output }, output: options.OutputName);
             }
 
-            private string WeightedSum(string values, List<int> neurons)
+            private string WeightedSum(string values, GraphPlan.NeuronGroup group)
             {
-                List<int> sources = neurons.SelectMany(n => incoming[n])
-                                           .Where(s => Type(s.From) != NodeType.BIAS)
-                                           .Select(s => column[s.From])
-                                           .Distinct()
-                                           .OrderBy(c => c)
-                                           .ToList();
-                var row = sources.Select((c, i) => (c, i)).ToDictionary(x => x.c, x => x.i);
+                string sum = group.Sources.Length > 0
+                    ? graph.Node("MatMul", new[] { Gather(values, group.Sources), graph.FloatTensor("weights", group.Weights, group.Sources.Length, group.Count) })
+                    : ZeroColumn(); // fed only by bias neurons; broadcasts to [batch, neurons] below
 
-                var weights = new float[sources.Count * neurons.Count];
-                var bias = new float[neurons.Count];
-
-                for (int n = 0; n < neurons.Count; n++)
+                if (group.Sources.Length == 0 || group.Bias.Any(b => b != 0))
                 {
-                    foreach (var (from, weight) in incoming[neurons[n]])
-                    {
-                        if (Type(from) == NodeType.BIAS) bias[n] += weight;
-                        else weights[(row[column[from]] * neurons.Count) + n] += weight;
-                    }
-                }
-
-                string sum;
-                if (sources.Count > 0)
-                {
-                    string selected = Gather(values, sources.Select(c => (long)c).ToArray());
-                    sum = graph.Node("MatMul", new[] { selected, graph.FloatTensor("weights", weights, sources.Count, neurons.Count) });
-                }
-                else
-                {
-                    sum = ZeroColumn(); // fed only by bias neurons; broadcasts to [batch, neurons] below
-                }
-
-                if (sources.Count == 0 || bias.Any(b => b != 0))
-                {
-                    sum = graph.Node("Add", new[] { sum, graph.FloatTensor("bias", bias, bias.Length) });
+                    sum = graph.Node("Add", new[] { sum, graph.FloatTensor("bias", group.Bias, group.Count) });
                 }
 
                 return sum;
             }
 
-            private string Activate(string value, ActivationTypes activation)
+            private string Gather(string values, int[] columns)
             {
-                return OnnxActivations.Apply(graph, value, activation);
-            }
-
-            /// <summary>
-            /// Activation actually applied by the neuron: outputs of a soft-max network are not activated
-            /// </summary>
-            private ActivationTypes Activation(int neuron)
-            {
-                NeuronDocument document = this.document.Neurons[neuron];
-                return document.ApplyActivation == false ? ActivationTypes.Identity : document.Activation;
-            }
-
-            /// <summary>
-            /// A neuron fires once every input synapse delivered, so it needs at least one input and inputs that all fire
-            /// </summary>
-            private bool Fires(int neuron)
-            {
-                if (fires[neuron] is bool known) return known;
-
-                NodeType type = Type(neuron);
-                bool result = type == NodeType.INPUT || type == NodeType.BIAS
-                    || (incoming[neuron].Count > 0 && incoming[neuron].All(s => Fires(s.From)));
-
-                fires[neuron] = result;
-                return result;
-            }
-
-            /// <summary>
-            /// Inputs have depth 0, every other neuron is one deeper than its deepest non-bias input
-            /// </summary>
-            private int Depth(int neuron)
-            {
-                if (depth[neuron] is int known) return known;
-
-                int result = Type(neuron) == NodeType.INPUT ? 0
-                    : 1 + incoming[neuron].Where(s => Type(s.From) != NodeType.BIAS).Select(s => Depth(s.From)).DefaultIfEmpty(0).Max();
-
-                depth[neuron] = result;
-                return result;
-            }
-
-            private string Gather(string values, long[] columns)
-            {
-                return graph.Node("Gather", new[] { values, graph.Int64Tensor("columns", columns, columns.Length) }, OnnxGraph.IntAttribute("axis", 1));
+                return graph.Node("Gather", new[] { values, graph.Int64Tensor("columns", columns.Select(x => (long)x).ToArray(), columns.Length) }, OnnxGraph.IntAttribute("axis", 1));
             }
 
             private string Concat(List<string> parts)

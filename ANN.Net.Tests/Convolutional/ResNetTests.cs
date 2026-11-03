@@ -84,7 +84,7 @@ namespace ANN.Net.Tests.Convolutional
         /// ResNet-18 with 8 instead of 64 base filters on 32 x 32 images: the same 18 layers, small enough to run in tests,
         /// trained a few steps so that the weights and the running statistics are no longer at their initial values
         /// </summary>
-        private static IConvolutionalNetwork TrainedNarrowResNet18()
+        internal static IConvolutionalNetwork TrainedNarrowResNet18()
         {
             IConvolutionalNetwork network = NetworkFactory.BuildConvolutional(ResNet18(32, 32, 10, baseFilters: 8, OptimizerTypes.Adam));
             foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.001f;
