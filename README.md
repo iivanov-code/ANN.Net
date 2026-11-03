@@ -77,6 +77,40 @@ Quad loss = cnn.Backpropagate(oneHotTarget);       // trains on that image
   a stride, zero padding (smaller than the kernel) and an activation.
 - **Pooling layers** take the max or the average over `Size` × `Size` windows, with a stride that defaults to `Size`.
 - **Dense layers** flatten their input and may only be followed by other dense layers.
+- **Batch normalization layers** normalize every channel and apply an activation. While `cnn.Training` is true
+  (the default) they use the statistics of the current image and update running averages; set it to false for
+  inference, which then uses the running averages, as an ONNX export does.
+- **Residual blocks** are the basic blocks of ResNet-18/34: two 3×3 convolutions with batch normalization, added to
+  the input (through a 1×1 convolution when the stride or the channels change).
+- **Global average pooling** averages every channel; convolutions can be built without bias (`UseBias = false`)
+  and pooling can be padded (`Padding`).
+
+ResNet-18, as in torchvision, with exactly its 11,689,512 parameters:
+
+```csharp
+var resNet18 = new ConvolutionalNetworkSettings
+{
+    InputChannels = 3, InputHeight = 224, InputWidth = 224, OutputDimension = 1000, OutputApplySoftMax = true,
+    Layers =
+    {
+        new ConvolutionLayerSettings { Filters = 64, KernelSize = 7, Stride = 2, Padding = 3, UseBias = false, ActivationType = ActivationTypes.Identity },
+        new BatchNormalizationLayerSettings { ActivationType = ActivationTypes.RELU },
+        new PoolingLayerSettings { Type = PoolingType.Max, Size = 3, Stride = 2, Padding = 1 },
+        new ResidualBlockSettings { Filters = 64 },  new ResidualBlockSettings { Filters = 64 },
+        new ResidualBlockSettings { Filters = 128, Stride = 2 }, new ResidualBlockSettings { Filters = 128 },
+        new ResidualBlockSettings { Filters = 256, Stride = 2 }, new ResidualBlockSettings { Filters = 256 },
+        new ResidualBlockSettings { Filters = 512, Stride = 2 }, new ResidualBlockSettings { Filters = 512 },
+        new GlobalAveragePoolingLayerSettings()
+    }
+};
+```
+
+Networks are trained one image at a time, so batch normalization sees a batch of one: it normalizes over the
+positions of each channel. A full-size ResNet-18 forward pass takes several seconds on a CPU; the implementation
+favours clarity over speed.
+
+`Seed` (on `ConvolutionalNetworkSettings`, `TransformerSettings` and `NetworkSettings`) makes the initial weights
+reproducible.
 
 Every weight and bias owns an optimizer of `OptimizerType`, as in the transformer. Convolutional networks can be
 saved and loaded like the other networks (`Save`, `ANNetwork.Load`, `NetworkSerializer`) and exported to ONNX

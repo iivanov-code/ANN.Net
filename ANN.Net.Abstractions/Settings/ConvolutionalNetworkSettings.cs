@@ -77,6 +77,11 @@ namespace ANN.Net.Abstractions.Settings
         public int Padding { get; set; }
 
         public ActivationTypes ActivationType { get; set; } = ActivationTypes.RELU;
+
+        /// <summary>
+        /// Whether every filter has a bias; convolutions followed by batch normalization usually have none
+        /// </summary>
+        public bool UseBias { get; set; } = true;
     }
 
     /// <summary>
@@ -92,6 +97,51 @@ namespace ANN.Net.Abstractions.Settings
         /// Step between windows; 0 means <see cref="Size"/> (windows side by side)
         /// </summary>
         public int Stride { get; set; }
+
+        /// <summary>
+        /// Positions added around the input that windows may cover but that never count: max pooling ignores them and
+        /// average pooling divides by the real positions only. Must be smaller than <see cref="Size"/>
+        /// </summary>
+        public int Padding { get; set; }
+    }
+
+    /// <summary>
+    /// Batch normalization of every channel followed by an activation: values are normalized with the mean and variance
+    /// of the channel, then scaled and shifted by a learned gamma and beta. While the network is training the statistics
+    /// of the current image are used and running averages are updated; otherwise the running averages are used
+    /// </summary>
+    public class BatchNormalizationLayerSettings : ConvolutionalLayerSettings
+    {
+        public ActivationTypes ActivationType { get; set; } = ActivationTypes.Identity;
+
+        /// <summary>
+        /// Weight of the newest statistics in the running averages
+        /// </summary>
+        public float Momentum { get; set; } = 0.1f;
+
+        public float Epsilon { get; set; } = 1e-5f;
+    }
+
+    /// <summary>
+    /// Average of every channel: channels x height x width become channels x 1 x 1
+    /// </summary>
+    public class GlobalAveragePoolingLayerSettings : ConvolutionalLayerSettings
+    {
+    }
+
+    /// <summary>
+    /// Residual block of ResNet-18/34 ("basic block"): 3x3 convolution with <see cref="Stride"/>, batch normalization
+    /// and activation, 3x3 convolution and batch normalization, added to the input and activated. When the stride or the
+    /// number of channels changes, the input goes through a 1x1 convolution with batch normalization first. The
+    /// convolutions have no bias
+    /// </summary>
+    public class ResidualBlockSettings : ConvolutionalLayerSettings
+    {
+        public int Filters { get; set; }
+
+        public int Stride { get; set; } = 1;
+
+        public ActivationTypes ActivationType { get; set; } = ActivationTypes.RELU;
     }
 
     /// <summary>

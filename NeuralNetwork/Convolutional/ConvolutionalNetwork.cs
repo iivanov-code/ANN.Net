@@ -19,6 +19,8 @@ namespace ANN.Net.Convolutional
     {
         private const double LOG_EPSILON = 1e-7;
 
+        private readonly NetworkMode mode = new NetworkMode();
+
         public ConvolutionalNetwork(ConvolutionalNetworkSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
@@ -43,12 +45,30 @@ namespace ANN.Net.Convolutional
                     case ConvolutionLayerSettings convolution:
                         if (dense) throw new ArgumentException("Convolution layers must come before dense layers", nameof(settings));
                         layer = new ConvolutionLayer(shape, convolution.Filters, convolution.KernelHeight, convolution.KernelWidth, convolution.Stride,
-                                                     convolution.Padding, convolution.ActivationType, settings.OptimizerType, settings.InitializationType, Optimizers);
+                                                     convolution.Padding, convolution.ActivationType, settings.OptimizerType, settings.InitializationType, Optimizers,
+                                                     convolution.UseBias);
                         break;
 
                     case PoolingLayerSettings pooling:
                         if (dense) throw new ArgumentException("Pooling layers must come before dense layers", nameof(settings));
-                        layer = new PoolingLayer(shape, pooling.Type, pooling.Size, pooling.Stride == 0 ? pooling.Size : pooling.Stride);
+                        layer = new PoolingLayer(shape, pooling.Type, pooling.Size, pooling.Stride == 0 ? pooling.Size : pooling.Stride, pooling.Padding);
+                        break;
+
+                    case BatchNormalizationLayerSettings normalization:
+                        if (dense) throw new ArgumentException("Batch normalization layers must come before dense layers", nameof(settings));
+                        layer = new BatchNormalizationLayer(shape, normalization.ActivationType, normalization.Momentum, normalization.Epsilon, mode,
+                                                            settings.OptimizerType, Optimizers);
+                        break;
+
+                    case GlobalAveragePoolingLayerSettings:
+                        if (dense) throw new ArgumentException("Global average pooling must come before dense layers", nameof(settings));
+                        layer = new GlobalAveragePoolingLayer(shape);
+                        break;
+
+                    case ResidualBlockSettings residual:
+                        if (dense) throw new ArgumentException("Residual blocks must come before dense layers", nameof(settings));
+                        layer = new ResidualBlockLayer(shape, residual.Filters, residual.Stride, residual.ActivationType, mode,
+                                                       settings.OptimizerType, settings.InitializationType, Optimizers);
                         break;
 
                     case DenseLayerSettings denseSettings:
@@ -88,6 +108,12 @@ namespace ANN.Net.Convolutional
         public int OutputDimension => Settings.OutputDimension;
 
         public bool OutputApplySoftMax => Settings.OutputApplySoftMax;
+
+        public bool Training
+        {
+            get => mode.Training;
+            set => mode.Training = value;
+        }
 
         public Quad[] Values { get; private set; }
 

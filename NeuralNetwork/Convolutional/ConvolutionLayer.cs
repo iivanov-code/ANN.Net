@@ -18,7 +18,7 @@ namespace ANN.Net.Convolutional
 
         public ConvolutionLayer(Shape inputShape, int filters, int kernelHeight, int kernelWidth, int stride, int padding,
                                 ActivationTypes activationType, OptimizerTypes optimizerType, WeightInitType initializationType,
-                                ICollection<LearningRateOptimizer> optimizers)
+                                ICollection<LearningRateOptimizer> optimizers, bool useBias = true)
         {
             if (filters < 1) throw new ArgumentOutOfRangeException(nameof(filters), filters, "Must be at least 1");
             if (kernelHeight < 1 || kernelWidth < 1) throw new ArgumentOutOfRangeException(nameof(kernelHeight), "The kernel must be at least 1 x 1");
@@ -42,7 +42,7 @@ namespace ANN.Net.Convolutional
             int fanIn = inputShape.Channels * kernelHeight * kernelWidth;
             int fanOut = filters * kernelHeight * kernelWidth;
             Weights = new Parameters(filters * fanIn, optimizerType, optimizers, () => TransformerUtils.InitialWeight(initializationType, fanIn, fanOut));
-            Biases = new Parameters(filters, optimizerType, optimizers, () => 0);
+            Biases = useBias ? new Parameters(filters, optimizerType, optimizers, () => 0) : null;
         }
 
         public Shape InputShape { get; }
@@ -64,6 +64,9 @@ namespace ANN.Net.Convolutional
         /// </summary>
         public Parameters Weights { get; }
 
+        /// <summary>
+        /// One bias per filter, or null for a convolution without bias
+        /// </summary>
         public Parameters Biases { get; }
 
         private int WeightIndex(int filter, int channel, int row, int column)
@@ -83,7 +86,7 @@ namespace ANN.Net.Convolutional
                 {
                     for (int ox = 0; ox < output.Width; ox++)
                     {
-                        Quad sum = Biases.Values[f];
+                        Quad sum = Biases?.Values[f] ?? 0;
                         ForEachInput(oy, ox, (c, iy, ix, ky, kx) => sum += input[InputShape.Index(c, iy, ix)] * Weights.Values[WeightIndex(f, c, ky, kx)]);
                         sums[output.Index(f, oy, ox)] = sum;
                     }
@@ -101,7 +104,7 @@ namespace ANN.Net.Convolutional
             Shape output = OutputShape;
             var inputGradient = new Quad[InputShape.Size];
             var weightGradients = new Quad[Weights.Values.Length];
-            var biasGradients = new Quad[Biases.Values.Length];
+            var biasGradients = new Quad[output.Channels];
 
             for (int f = 0; f < output.Channels; f++)
             {
@@ -124,7 +127,7 @@ namespace ANN.Net.Convolutional
             }
 
             Weights.Update(weightGradients);
-            Biases.Update(biasGradients);
+            Biases?.Update(biasGradients);
             return inputGradient;
         }
 

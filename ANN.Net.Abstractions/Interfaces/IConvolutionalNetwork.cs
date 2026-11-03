@@ -24,5 +24,11 @@ namespace ANN.Net.Abstractions.Interfaces
         int OutputDimension { get; }
 
         bool OutputApplySoftMax { get; }
+
+        /// <summary>
+        /// Training mode (the default): batch normalization uses the statistics of the current image and updates its
+        /// running averages. Set to false for inference, where the running averages are used, as in an ONNX export
+        /// </summary>
+        bool Training { get; set; }
     }
 }

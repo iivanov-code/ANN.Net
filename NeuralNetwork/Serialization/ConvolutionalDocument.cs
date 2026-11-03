@@ -20,6 +20,11 @@ namespace ANN.Net.Serialization
         public OptimizerTypes OptimizerType { get; set; }
 
         /// <summary>
+        /// Whether batch normalization uses the statistics of the current image (training) or its running averages
+        /// </summary>
+        public bool Training { get; set; } = true;
+
+        /// <summary>
         /// Every layer in order; the last one is the dense output layer
         /// </summary>
         public List<ConvolutionalLayerDocument> Layers { get; set; } = new List<ConvolutionalLayerDocument>();
@@ -29,7 +34,10 @@ namespace ANN.Net.Serialization
     {
         Convolution = 0,
         Pooling = 1,
-        Dense = 2
+        Dense = 2,
+        BatchNormalization = 3,
+        GlobalAveragePooling = 4,
+        Residual = 5
     }
 
     internal sealed class ConvolutionalLayerDocument
@@ -47,6 +55,8 @@ namespace ANN.Net.Serialization
 
         public int? Padding { get; set; }
 
+        public bool? UseBias { get; set; }
+
         // convolution and pooling
         public int? Stride { get; set; }
 
@@ -58,9 +68,29 @@ namespace ANN.Net.Serialization
         // dense
         public int? NeuronsCount { get; set; }
 
+        /// <summary>
+        /// Convolution and dense weights; the gamma of batch normalization
+        /// </summary>
         public ParametersDocument Weights { get; set; }
 
+        /// <summary>
+        /// Convolution and dense biases (none for a convolution without bias); the beta of batch normalization
+        /// </summary>
         public ParametersDocument Biases { get; set; }
+
+        // batch normalization
+        public float? Momentum { get; set; }
+
+        public float? Epsilon { get; set; }
+
+        public float[] RunningMean { get; set; }
+
+        public float[] RunningVariance { get; set; }
+
+        // residual block
+        public List<ConvolutionalLayerDocument> Main { get; set; }
+
+        public List<ConvolutionalLayerDocument> Shortcut { get; set; }
     }
 
     internal sealed class ParametersDocument

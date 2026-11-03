@@ -31,7 +31,7 @@ namespace ANN.Net.Tests.Convolutional
         /// <summary>
         /// Input gradient against central differences of L = Σ outputs * upstream, with learning rate 0 so nothing changes
         /// </summary>
-        private static void AssertInputGradient(IConvolutionalLayer layer, Random random, bool distinct = false)
+        internal static void AssertInputGradient(IConvolutionalLayer layer, Random random, bool distinct = false)
         {
             Quad[] input = distinct ? DistinctValues(random, layer.InputShape.Size) : RandomValues(random, layer.InputShape.Size);
             Quad[] upstream = RandomValues(random, layer.OutputShape.Size);
@@ -54,7 +54,7 @@ namespace ANN.Net.Tests.Convolutional
         /// <summary>
         /// Parameter gradients: one plain gradient step with learning rate 1 changes every value by exactly its gradient
         /// </summary>
-        private static void AssertParameterGradients(IConvolutionalLayer layer, Parameters parameters, ICollection<LearningRateOptimizer> optimizers, Random random)
+        internal static void AssertParameterGradients(IConvolutionalLayer layer, Parameters parameters, ICollection<LearningRateOptimizer> optimizers, Random random)
         {
             Quad[] input = RandomValues(random, layer.InputShape.Size);
             Quad[] upstream = RandomValues(random, layer.OutputShape.Size);

@@ -4,25 +4,30 @@ using ANN.Net.Abstractions.Enums;
 namespace ANN.Net.Convolutional
 {
     /// <summary>
-    /// Max or average pooling of every channel over windows of size x size, without padding
+    /// Max or average pooling of every channel over windows of size x size. Padding positions never count: max pooling
+    /// ignores them and average pooling divides by the number of real positions in the window
     /// </summary>
     [Serializable]
     internal sealed class PoolingLayer : IConvolutionalLayer
     {
         private int[] maxIndexes;
 
-        public PoolingLayer(Shape inputShape, PoolingType type, int size, int stride)
+        public PoolingLayer(Shape inputShape, PoolingType type, int size, int stride, int padding = 0)
         {
             if (size < 1) throw new ArgumentOutOfRangeException(nameof(size), size, "Must be at least 1");
             if (stride < 1) throw new ArgumentOutOfRangeException(nameof(stride), stride, "Must be at least 1");
-            if (size > inputShape.Height || size > inputShape.Width)
+            if (padding < 0 || padding >= size) throw new ArgumentOutOfRangeException(nameof(padding), padding, "Must be at least 0 and smaller than the window");
+            if (size > inputShape.Height + (2 * padding) || size > inputShape.Width + (2 * padding))
                 throw new ArgumentException($"A {size}x{size} pooling window does not fit the {inputShape} input");
 
             InputShape = inputShape;
-            OutputShape = new Shape(inputShape.Channels, ((inputShape.Height - size) / stride) + 1, ((inputShape.Width - size) / stride) + 1);
+            OutputShape = new Shape(inputShape.Channels,
+                                    ((inputShape.Height + (2 * padding) - size) / stride) + 1,
+                                    ((inputShape.Width + (2 * padding) - size) / stride) + 1);
             Type = type;
             Size = size;
             Stride = stride;
+            Padding = padding;
         }
 
         public Shape InputShape { get; }
@@ -34,6 +39,8 @@ namespace ANN.Net.Convolutional
         public int Size { get; }
 
         public int Stride { get; }
+
+        public int Padding { get; }
 
         public Quad[] Propagate(Quad[] input)
         {
@@ -49,25 +56,22 @@ namespace ANN.Net.Convolutional
                     {
                         int outputIndex = output.Index(c, oy, ox);
                         Quad max = Quad.NegativeInfinity, sum = 0;
-                        int maxIndex = -1;
+                        int maxIndex = -1, count = 0;
 
-                        for (int ky = 0; ky < Size; ky++)
+                        foreach (int inputIndex in Window(c, oy, ox))
                         {
-                            for (int kx = 0; kx < Size; kx++)
+                            Quad value = input[inputIndex];
+                            sum += value;
+                            count++;
+                            if (maxIndex < 0 || value > max)
                             {
-                                int inputIndex = InputShape.Index(c, (oy * Stride) + ky, (ox * Stride) + kx);
-                                Quad value = input[inputIndex];
-                                sum += value;
-                                if (maxIndex < 0 || value > max)
-                                {
-                                    max = value;
-                                    maxIndex = inputIndex;
-                                }
+                                max = value;
+                                maxIndex = inputIndex;
                             }
                         }
 
                         maxIndexes[outputIndex] = maxIndex;
-                        values[outputIndex] = Type == PoolingType.Max ? max : sum / (Size * Size);
+                        values[outputIndex] = Type == PoolingType.Max ? max : sum / count;
                     }
                 }
             }
@@ -96,19 +100,35 @@ namespace ANN.Net.Convolutional
                             continue;
                         }
 
-                        Quad share = outputGradient[outputIndex] / (Size * Size);
-                        for (int ky = 0; ky < Size; ky++)
+                        var window = new System.Collections.Generic.List<int>(Window(c, oy, ox));
+                        Quad share = outputGradient[outputIndex] / window.Count;
+                        foreach (int inputIndex in window)
                         {
-                            for (int kx = 0; kx < Size; kx++)
-                            {
-                                inputGradient[InputShape.Index(c, (oy * Stride) + ky, (ox * Stride) + kx)] += share;
-                            }
+                            inputGradient[inputIndex] += share;
                         }
                     }
                 }
             }
 
             return inputGradient;
+        }
+
+        /// <summary>
+        /// Input positions under the window at the output position, without the padding
+        /// </summary>
+        private System.Collections.Generic.IEnumerable<int> Window(int channel, int outputRow, int outputColumn)
+        {
+            for (int ky = 0; ky < Size; ky++)
+            {
+                int iy = (outputRow * Stride) - Padding + ky;
+                if (iy < 0 || iy >= InputShape.Height) continue;
+
+                for (int kx = 0; kx < Size; kx++)
+                {
+                    int ix = (outputColumn * Stride) - Padding + kx;
+                    if (ix >= 0 && ix < InputShape.Width) yield return InputShape.Index(channel, iy, ix);
+                }
+            }
         }
     }
 }
