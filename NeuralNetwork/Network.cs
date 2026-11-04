@@ -5,6 +5,7 @@ using ANN.Net.Abstractions.Arguments;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
+using ANN.Net.Abstractions.Interfaces.Synapses;
 using ANN.Net.Abstractions.Models;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
@@ -14,7 +15,7 @@ using ANN.Net.Utils;
 namespace ANN.Net
 {
     [Serializable]
-    internal sealed class Network : ANNetwork, INetwork
+    internal sealed class Network : ANNetwork, INetwork, IVectorNetwork
     {
         public IReadOnlyList<Tuple<Quad, Quad>> MinMaxValues { get; }
 
@@ -139,6 +140,53 @@ namespace ANN.Net
             }
 
             return this.lossFunction.CalculateLoss(results);
+        }
+
+        public int InputSize => InputNeurons.Count(n => n is not BiasNeuron);
+
+        public int OutputSize => OutputNeurons.Count;
+
+        /// <summary>
+        /// Synapses with their own weight, and every shared weight once
+        /// </summary>
+        public long ParameterCount
+        {
+            get
+            {
+                IEnumerable<INeuron> neurons = InputNeurons.Cast<INeuron>()
+                    .Concat((HiddenLayers ?? Enumerable.Empty<ILayer<IHiddenNeuron>>()).SelectMany(x => x).Cast<INeuron>())
+                    .Concat(OutputNeurons.Cast<INeuron>());
+                var shared = new HashSet<object>(ReferenceEqualityComparer.Instance);
+                long own = 0;
+                foreach (ISynapse synapse in neurons.Where(x => x.Inputs != null).SelectMany(x => x.Inputs))
+                {
+                    if (synapse is Connections.SharedWeightSynapse sharing) shared.Add(sharing.SharedWeight);
+                    else if (synapse is Connections.ActiveSynapse) own++;
+                }
+
+                return own + shared.Count;
+            }
+        }
+
+        /// <summary>
+        /// The gradient is taken with respect to the outputs <see cref="Propagate"/> returned, through the division by
+        /// their sum of a soft-max network. The returned gradient is with respect to the inputs before normalization
+        /// </summary>
+        public Quad[] BackpropagateGradient(Quad[] outputGradients)
+        {
+            GradientUtils.CheckLength(outputGradients, OutputNeurons.Count, nameof(outputGradients));
+
+            Quad[] values = OutputNeurons.Select(x => x.Value).ToArray();
+            Quad[] gradients = applySoftMax ? GradientUtils.ThroughDivideBySum(outputGradients, values) : outputGradients;
+            for (int i = 0; i < gradients.Length; i++)
+            {
+                this.Errors[i] = gradients[i];
+                OutputNeurons[i].Backpropagate(new BackpropagateEventArgs(gradients[i]));
+            }
+
+            Quad[] inputGradients = InputGradients;
+            if (!shouldNormalize) return inputGradients;
+            return inputGradients.Select((g, i) => g / (MinMaxValues[i].Item2 - MinMaxValues[i].Item1)).ToArray();
         }
     }
 }

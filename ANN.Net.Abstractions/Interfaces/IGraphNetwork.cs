@@ -6,12 +6,17 @@ namespace ANN.Net.Abstractions.Interfaces
     /// <summary>
     /// Network built from a free-form graph description (see <c>NetworkFactory.BuildGraph</c>)
     /// </summary>
-    public interface IGraphNetwork : INetwork
+    public interface IGraphNetwork : INetwork, IVectorNetwork
     {
+        /// <summary>
+        /// Outputs for the input values; one method for <see cref="INetwork"/> and <see cref="IVectorNetwork"/>
+        /// </summary>
+        new Quad[] Propagate(params Quad[] values);
+
         /// <summary>
         /// Optimizers of every synapse, to set the learning rate before calling <see cref="INetwork.Backpropagate"/>
         /// </summary>
-        ICollection<LearningRateOptimizer> Optimizers { get; }
+        new ICollection<LearningRateOptimizer> Optimizers { get; }
 
         /// <summary>
         /// Current weight of every connection that made it into the network, keyed by connection id.

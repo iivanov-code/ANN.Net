@@ -151,7 +151,36 @@ namespace ANN.Net.Transformers
             }
 
             this.Errors = errors;
+            this.BackpropagateLayers(errors);
+            return totalError;
+        }
 
+        /// <summary>
+        /// Takes the gradient of the loss with respect to the outputs of the last propagation (through the soft-max of a
+        /// soft-max network), updates the weights and returns the gradient with respect to the input vectors
+        /// </summary>
+        internal Quad[][] BackpropagateGradient(Quad[][] outputGradients)
+        {
+            if (outputGradients == null) throw new ArgumentNullException(nameof(outputGradients));
+            if (this.Values == null) throw new InvalidOperationException("Propagate must be called before BackpropagateGradient");
+            if (outputGradients.Length != this.Values.Length)
+                throw new ArgumentException("Gradient sequence length differs from the propagated sequence length", nameof(outputGradients));
+
+            Quad[][] errors = new Quad[outputGradients.Length][];
+            for (int t = 0; t < errors.Length; t++)
+            {
+                Utils.GradientUtils.CheckLength(outputGradients[t], this.settings.OutputDimension, nameof(outputGradients));
+                errors[t] = this.settings.OutputApplySoftMax
+                    ? Utils.GradientUtils.ThroughSoftMax(outputGradients[t], this.Values[t])
+                    : (Quad[])outputGradients[t].Clone();
+            }
+
+            this.Errors = errors;
+            return this.BackpropagateLayers(errors);
+        }
+
+        private Quad[][] BackpropagateLayers(Quad[][] errors)
+        {
             Quad[][] gradients = this.outputProjection.Backpropagate(errors);
             gradients = this.outputNormalization.Backpropagate(gradients);
 
@@ -160,10 +189,8 @@ namespace ANN.Net.Transformers
                 gradients = this.blocks[i].Backpropagate(gradients);
             }
 
-            // positional encodings are fixed, only the input projection learns
-            this.inputProjection.Backpropagate(gradients);
-
-            return totalError;
+            // positional encodings are fixed and add their gradient unchanged; only the input projection learns
+            return this.inputProjection.Backpropagate(gradients);
         }
 
         private Quad CalculateLoss(Quad target, Quad predicted)

@@ -92,6 +92,37 @@ namespace ANN.Net
         }
 
         /// <summary>
+        /// Builds a network of networks: every node holds a whole network (matrix, neuron, graph, convolutional,
+        /// transformer through <see cref="AsVectorNetwork(ISequenceNetwork, int)"/>, or another nested network) that
+        /// takes a vector and gives a vector. Backpropagation trains the networks of all nodes together
+        /// </summary>
+        public static INestedNetwork BuildNested(NestedNetworkSettings settings)
+        {
+            return Nested.NestedNetwork.Build(settings);
+        }
+
+        /// <summary>
+        /// The network as a vector network for a node of a nested network. Networks of <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/>,
+        /// <see cref="BuildMatrixFFN"/>, <see cref="BuildGraph"/>, <see cref="BuildConvolutional"/> and <see cref="BuildNested"/> are vector networks
+        /// </summary>
+        public static IVectorNetwork AsVectorNetwork(INetwork network)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+            return network as IVectorNetwork ?? throw new NotSupportedException($"A {network.GetType().Name} cannot pass gradients and cannot be inside a nested network");
+        }
+
+        /// <summary>
+        /// A transformer as a vector network for sequences of <paramref name="sequenceLength"/> tokens: the vectors in
+        /// and out hold the tokens one after the other
+        /// </summary>
+        public static IVectorNetwork AsVectorNetwork(ISequenceNetwork network, int sequenceLength)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+            if (network is not TransformerNetwork transformer) throw new NotSupportedException($"A {network.GetType().Name} cannot be inside a nested network");
+            return new Nested.SequenceVectorNetwork(transformer, sequenceLength);
+        }
+
+        /// <summary>
         /// Builds a feed-forward network with an arbitrary acyclic topology, such as the phenotype of a NEAT genome.
         /// Disabled connections and every neuron that is not on a path from an input to an output are left out
         /// </summary>

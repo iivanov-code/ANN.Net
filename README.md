@@ -441,6 +441,44 @@ foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.Learni
 | One training step, Adam | 57 ms | 3.9 ms |
 | One propagation | 22 ms | 0.4 ms |
 
+## Networks of networks
+
+`NetworkFactory.BuildNested` builds a network whose nodes are whole networks: every node takes a vector, gives a
+vector, and passes it to the nodes that read it. A node joins the vectors it receives one after the other
+(`NodeCombination.Concatenate`) or adds them up (`NodeCombination.Sum`). Node 0 (`NestedNetworkSettings.InputNode`)
+is the input of the whole network, and the output is the outputs of the listed nodes one after the other.
+
+```csharp
+IMatrixNetwork encoder = NetworkFactory.BuildMatrixFFN(encoderSettings, hidden);          // 16 -> 24
+IVectorNetwork attention = NetworkFactory.AsVectorNetwork(transformer, sequenceLength: 4);  // 4 tokens of 6 -> 4 tokens of 6
+INestedNetwork inner = NetworkFactory.BuildNested(innerSettings);                           // a network of networks itself
+
+INestedNetwork network = NetworkFactory.BuildNested(new NestedNetworkSettings
+{
+    InputSize = 16,
+    Nodes =
+    {
+        new NestedNode(1, encoder, NestedNetworkSettings.InputNode),
+        new NestedNode(2, attention, 1),
+        new NestedNode(3, inner, 2, NestedNetworkSettings.InputNode),                      // 24 + 16 values
+    },
+    Outputs = { 3 }
+});
+
+foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.01f;
+network.Propagate(input);
+network.Backpropagate(target);   // trains the networks of all nodes together
+```
+
+A node can hold any `IVectorNetwork`: matrix, neuron, graph, convolutional and nested networks are vector networks,
+and `AsVectorNetwork` turns a transformer into one for sequences of a fixed length, so nested networks nest to any
+depth. Backpropagation visits the nodes in reverse order, adds up the gradients from every node that reads a node,
+and hands them to `BackpropagateGradient` of the network inside, which trains it and returns the gradient of its
+inputs (through the normalization and soft-max of the inner network). Any class implementing `IVectorNetwork` can be
+a node too. Rules: the nodes must not form a cycle, every node needs its own network, and nodes that feed no output
+are left out. Nested networks save and load with `NetworkSerializer` when every node can be saved (transformers
+cannot yet); they cannot be compacted or exported to ONNX yet.
+
 ## Splitting a neuron network across processes
 
 `ANN.Net.Remote` runs the first layers of a neuron network in one process and

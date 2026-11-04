@@ -64,6 +64,14 @@ namespace ANN.Net
 
         public Quad Backpropagate(params Quad[] targets) => network.Backpropagate(targets);
 
+        public int InputSize => network.InputSize;
+
+        public int OutputSize => network.OutputSize;
+
+        public long ParameterCount => synapses.Count;
+
+        public Quad[] BackpropagateGradient(Quad[] outputGradients) => network.BackpropagateGradient(outputGradients);
+
         /// <summary>
         /// Nodes and connections of a valid graph after pruning, in the order of the settings
         /// </summary>

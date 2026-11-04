@@ -74,6 +74,9 @@ namespace ANN.Net
             if (network is Convolutional.ConvolutionalNetwork convolutional)
                 return new ConvolutionalOnnxBuilder(convolutional, options).Build();
 
+            if (network is Nested.NestedNetwork)
+                throw new NotSupportedException("Nested networks cannot be exported to ONNX yet");
+
             if (network is Matrix.MatrixNetwork matrix)
                 return new Builder(GraphPlan.Create(matrix), "Exported from an ANN.Net matrix network", options).Build();
 

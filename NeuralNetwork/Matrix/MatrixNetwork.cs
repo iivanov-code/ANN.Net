@@ -201,8 +201,33 @@ namespace ANN.Net.Matrix
             }
 
             Errors = errors;
+            BackpropagateLayers(errors);
+            return lossFunction.CalculateLoss(results);
+        }
 
-            Quad[] gradient = errors;
+        public int InputSize => InputCount;
+
+        public int OutputSize => Layers[^1].Outputs;
+
+        /// <summary>
+        /// The gradient is taken with respect to the outputs <see cref="Propagate"/> returned, through the division by
+        /// their sum of a soft-max network. The returned gradient is with respect to the inputs before normalization
+        /// </summary>
+        public Quad[] BackpropagateGradient(Quad[] outputGradients)
+        {
+            GradientUtils.CheckLength(outputGradients, OutputSize, nameof(outputGradients));
+            if (inputValues == null) throw new InvalidOperationException("Propagate must be called before BackpropagateGradient");
+
+            Quad[] gradient = OutputApplySoftMax ? GradientUtils.ThroughDivideBySum(outputGradients, Layers[^1].Values) : (Quad[])outputGradients.Clone();
+            Errors = gradient;
+            BackpropagateLayers(gradient);
+
+            if (!ShouldNormalize) return (Quad[])InputGradients.Clone();
+            return InputGradients.Select((g, i) => g / (MinMaxValues[i].Item2 - MinMaxValues[i].Item1)).ToArray();
+        }
+
+        private void BackpropagateLayers(Quad[] gradient)
+        {
             for (int l = Layers.Count - 1; l >= 0; l--)
             {
                 gradient = Layers[l].Backpropagate(gradient, l == 0 ? inputValues : Layers[l - 1].Values);
@@ -210,7 +235,6 @@ namespace ANN.Net.Matrix
 
             // the input neurons report the gradient before their activation
             InputGradients = gradient.Select((g, i) => g * inputFunction.Derivative(inputPreActivations[i])).ToArray();
-            return lossFunction.CalculateLoss(results);
         }
     }
 }

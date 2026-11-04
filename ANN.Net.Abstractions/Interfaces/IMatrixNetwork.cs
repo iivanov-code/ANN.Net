@@ -8,16 +8,21 @@ namespace ANN.Net.Abstractions.Interfaces
     /// <c>NetworkFactory.BuildMatrixFFN</c> or converted with <c>NetworkFactory.ToMatrix</c>. It computes and trains
     /// exactly like the neuron-graph network of the same settings
     /// </summary>
-    public interface IMatrixNetwork : INetwork
+    public interface IMatrixNetwork : INetwork, IVectorNetwork
     {
+        /// <summary>
+        /// Outputs for the input values; one method for <see cref="INetwork"/> and <see cref="IVectorNetwork"/>
+        /// </summary>
+        new Quad[] Propagate(params Quad[] values);
+
         /// <summary>
         /// One optimizer per weight matrix and per bias vector, to set the learning rate before training
         /// </summary>
-        ICollection<LearningRateOptimizer> Optimizers { get; }
+        new ICollection<LearningRateOptimizer> Optimizers { get; }
 
         /// <summary>
         /// Number of weights and biases
         /// </summary>
-        long ParameterCount { get; }
+        new long ParameterCount { get; }
     }
 }

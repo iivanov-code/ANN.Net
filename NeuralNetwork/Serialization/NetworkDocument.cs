@@ -50,6 +50,11 @@ namespace ANN.Net.Serialization
         /// Layers of a <see cref="NetworkKind.Convolutional"/> network
         /// </summary>
         public ConvolutionalDocument Convolutional { get; set; }
+
+        /// <summary>
+        /// Nodes of a <see cref="NetworkKind.Nested"/> network
+        /// </summary>
+        public NestedDocument Nested { get; set; }
     }
 
     internal enum NetworkKind
@@ -67,7 +72,12 @@ namespace ANN.Net.Serialization
         /// <summary>
         /// Convolutional network from <c>NetworkFactory.BuildConvolutional</c>; stored in <see cref="NetworkDocument.Convolutional"/>
         /// </summary>
-        Convolutional = 2
+        Convolutional = 2,
+
+        /// <summary>
+        /// Network of networks from <c>NetworkFactory.BuildNested</c>; stored in <see cref="NetworkDocument.Nested"/>
+        /// </summary>
+        Nested = 3
     }
 
     internal sealed class NeuronDocument

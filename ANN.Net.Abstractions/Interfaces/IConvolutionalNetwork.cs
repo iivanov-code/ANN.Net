@@ -8,18 +8,23 @@ namespace ANN.Net.Abstractions.Interfaces
     /// image as a flat array of <see cref="InputChannels"/> x <see cref="InputHeight"/> x <see cref="InputWidth"/> values in
     /// channel, row, column order; <see cref="INetwork.Backpropagate"/> trains on that image and returns its loss
     /// </summary>
-    public interface IConvolutionalNetwork : INetwork
+    public interface IConvolutionalNetwork : INetwork, IVectorNetwork
     {
+        /// <summary>
+        /// Outputs for the input values; one method for <see cref="INetwork"/> and <see cref="IVectorNetwork"/>
+        /// </summary>
+        new Quad[] Propagate(params Quad[] values);
+
         /// <summary>
         /// Optimizers of the weights and biases, one per weight or bias array of a layer, to set the learning rate
         /// before training
         /// </summary>
-        ICollection<LearningRateOptimizer> Optimizers { get; }
+        new ICollection<LearningRateOptimizer> Optimizers { get; }
 
         /// <summary>
         /// Number of trainable values (weights, biases, batch normalization scales and shifts)
         /// </summary>
-        long ParameterCount { get; }
+        new long ParameterCount { get; }
 
         int InputChannels { get; }
 

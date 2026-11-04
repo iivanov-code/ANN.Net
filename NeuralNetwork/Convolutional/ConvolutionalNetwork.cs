@@ -6,6 +6,7 @@ using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Transformers;
+using ANN.Net.Utils;
 
 namespace ANN.Net.Convolutional
 {
@@ -174,13 +175,37 @@ namespace ANN.Net.Convolutional
                     : 0.5 * (float)error * (float)error;
             }
 
+            BackpropagateLayers(gradient);
+            return (Quad)loss;
+        }
+
+        public int InputSize => InputChannels * InputHeight * InputWidth;
+
+        public int OutputSize => OutputDimension;
+
+        /// <summary>
+        /// The gradient is taken with respect to the outputs <see cref="Propagate"/> returned, through the soft-max of a
+        /// soft-max network
+        /// </summary>
+        public Quad[] BackpropagateGradient(Quad[] outputGradients)
+        {
+            GradientUtils.CheckLength(outputGradients, OutputDimension, nameof(outputGradients));
+            if (Values == null) throw new InvalidOperationException("Propagate must be called before BackpropagateGradient");
+
+            Quad[] gradient = OutputApplySoftMax ? GradientUtils.ThroughSoftMax(outputGradients, Values) : (Quad[])outputGradients.Clone();
+            gradient.CopyTo(Errors, 0);
+            BackpropagateLayers(gradient);
+            return (Quad[])InputGradients.Clone();
+        }
+
+        private void BackpropagateLayers(Quad[] gradient)
+        {
             for (int i = Layers.Count - 1; i >= 0; i--)
             {
                 gradient = Layers[i].Backpropagate(gradient);
             }
 
             InputGradients = gradient;
-            return (Quad)loss;
         }
     }
 }

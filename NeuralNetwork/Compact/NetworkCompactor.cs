@@ -27,6 +27,9 @@ namespace ANN.Net
             if (network is ConvolutionalNetwork convolutional)
                 return new CompactConvolutionalNetwork(convolutional, options);
 
+            if (network is Nested.NestedNetwork)
+                throw new NotSupportedException("Nested networks cannot be compacted yet");
+
             if (network is Matrix.MatrixNetwork matrix)
                 return new CompactGraphNetwork(GraphPlan.Create(matrix), options);
 

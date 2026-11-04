@@ -136,6 +136,15 @@ namespace ANN.Net
                 case Matrix.MatrixNetwork matrix:
                     return MatrixSerializer.ToDocument(matrix, FormatName, FormatVersion);
 
+                case Nested.NestedNetwork nested:
+                    return new NetworkDocument
+                    {
+                        Format = FormatName,
+                        Version = FormatVersion,
+                        Kind = NetworkKind.Nested,
+                        Nested = NestedSerializer.ToDocument(nested)
+                    };
+
                 case Network n:
                     layered = n;
                     kind = NetworkKind.Layered;
@@ -299,6 +308,9 @@ namespace ANN.Net
 
             if (document.Kind == NetworkKind.Convolutional)
                 return ConvolutionalSerializer.FromDocument(document.Convolutional);
+
+            if (document.Kind == NetworkKind.Nested)
+                return NestedSerializer.FromDocument(document.Nested, FromDocument);
 
             List<NeuronDocument> neuronDocuments = document.Neurons ?? new List<NeuronDocument>();
             List<SynapseDocument> synapseDocuments = document.Synapses ?? new List<SynapseDocument>();
