@@ -136,15 +136,21 @@ namespace ANN.Net
             }
 
             var synapses = new Dictionary<uint, ActiveSynapse>();
+            // plain gradient descent keeps no state, so all synapses share one optimizer
+            IOptimizer shared = NetworkBuilder.SharedOptimizer(settings.OptimizerType, network.Optimizers);
             foreach (GraphConnection connection in connections)
             {
                 INeuron from = neurons[connection.FromNode];
                 INeuron to = neurons[connection.ToNode];
 
-                IOptimizer optimizer = NetworkUtils.GetOptimizer(settings.OptimizerType);
-                if (optimizer is LearningRateOptimizer learningRateOptimizer)
+                IOptimizer optimizer = shared;
+                if (optimizer == null)
                 {
-                    network.Optimizers.Add(learningRateOptimizer);
+                    optimizer = NetworkUtils.GetOptimizer(settings.OptimizerType);
+                    if (optimizer is LearningRateOptimizer learningRateOptimizer)
+                    {
+                        network.Optimizers.Add(learningRateOptimizer);
+                    }
                 }
 
                 var synapse = new ActiveSynapse(from, to, ids, optimizer, connection.Weight);

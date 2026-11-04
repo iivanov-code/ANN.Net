@@ -144,6 +144,8 @@ namespace ANN.Net
 
         /// <param name="fanIn">Number of inputs of <paramref name="output"/>, for Xavier initialization; when 0 the
         /// neurons count of the layer is used</param>
+        /// <param name="sharedOptimizer">Optimizer to use instead of a new one, already registered in
+        /// <paramref name="optimizers"/>; see <see cref="SharedOptimizer"/></param>
         public IOptimizer ConnectAxon(INeuron input,
                                       INeuron output,
                                       IUniqueIdentityGenerator identityGenerator,
@@ -151,7 +153,8 @@ namespace ANN.Net
                                       ICollection<LearningRateOptimizer> optimizers,
                                       bool isConnectionActive = true,
                                       bool recurrentConnection = false,
-                                      int fanIn = 0)
+                                      int fanIn = 0,
+                                      IOptimizer sharedOptimizer = null)
         {
             Quad initialWeight;
             switch (settings.InitializationType)
@@ -168,11 +171,14 @@ namespace ANN.Net
                     throw new ArgumentException("Invalid value", nameof(settings.InitializationType));
             }
 
-            IOptimizer optimizer = NetworkUtils.GetOptimizer(settings.OptimizerType);
-
-            if (optimizer is LearningRateOptimizer)
+            IOptimizer optimizer = sharedOptimizer;
+            if (optimizer == null)
             {
-                optimizers.Add(optimizer as LearningRateOptimizer);
+                optimizer = NetworkUtils.GetOptimizer(settings.OptimizerType);
+                if (optimizer is LearningRateOptimizer learningRateOptimizer)
+                {
+                    optimizers.Add(learningRateOptimizer);
+                }
             }
 
             ISynapse axon;
@@ -306,6 +312,20 @@ namespace ANN.Net
             return layer;
         }
 
+        /// <summary>
+        /// One optimizer for all synapses of a layer when the optimizer keeps no state (plain gradient descent), so a
+        /// layer holds one optimizer object instead of one per synapse; null for optimizers with state. Setting the
+        /// learning rate through the optimizers collection works as before
+        /// </summary>
+        internal static IOptimizer SharedOptimizer(OptimizerTypes type, ICollection<LearningRateOptimizer> optimizers)
+        {
+            if (type != OptimizerTypes.Normal) return null;
+
+            IOptimizer optimizer = NetworkUtils.GetOptimizer(type);
+            optimizers.Add((LearningRateOptimizer)optimizer);
+            return optimizer;
+        }
+
         private static void ValidateKernel(HiddenLayerSettings settings)
         {
             if (settings.KernelSize < 1) throw new ArgumentException("The kernel must hold at least one weight", nameof(settings));
@@ -374,11 +394,12 @@ namespace ANN.Net
 
             var layer = new Layer<T>(prevLayer.Count + 1);
 
+            IOptimizer shared = SharedOptimizer(settings.OptimizerType, optimizers);
             for (int i = 0; i < prevLayer.Count; i++)
             {
                 var neuron = neuronConstructor();
                 layer.Add(neuron);
-                ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers);
+                ConnectAxon(prevLayer[i], neuron, identityGenerator, settings, optimizers, sharedOptimizer: shared);
             }
 
             return layer;
@@ -388,6 +409,7 @@ namespace ANN.Net
              where T : class, INeuron
         {
             int fanIn = prevLayer.Count();
+            IOptimizer shared = SharedOptimizer(settings.OptimizerType, optimizers);
             var layer = new Layer<T>(settings.NeuronsCount);
 
             for (int i = 0; i < settings.NeuronsCount; i++)
@@ -396,7 +418,7 @@ namespace ANN.Net
                 layer.Add(neuron);
                 foreach (var inNeuron in prevLayer)
                 {
-                    ConnectAxon(inNeuron, neuron, identityGenerator, settings, optimizers, fanIn: fanIn);
+                    ConnectAxon(inNeuron, neuron, identityGenerator, settings, optimizers, fanIn: fanIn, sharedOptimizer: shared);
                 }
             }
 

@@ -346,6 +346,7 @@ namespace ANN.Net
 
             var ids = new IncrementalGenerator();
             var synapses = new ISynapse[synapseDocuments.Count];
+            var sharedOptimizers = new Dictionary<float, IOptimizer>();
             SharedWeight[] sharedWeights = (document.SharedWeights ?? new List<SharedWeightDocument>())
                 .Select(x => x == null
                     ? throw new InvalidDataException("A shared weight is missing")
@@ -369,7 +370,7 @@ namespace ANN.Net
                 }
                 else
                 {
-                    synapses[i] = new ActiveSynapse(from, to, ids, CreateOptimizer(synapse.Optimizer, synapse.LearningRate, network.Optimizers), synapse.Weight);
+                    synapses[i] = new ActiveSynapse(from, to, ids, OptimizerFor(synapse, network.Optimizers, sharedOptimizers), synapse.Weight);
                 }
 
                 if (synapse.Recurrent) from.Outputs.AddRecurrent(synapses[i]);
@@ -436,6 +437,23 @@ namespace ANN.Net
                 default:
                     throw new InvalidDataException($"Unknown neuron type {neuron.Type}");
             }
+        }
+
+        /// <summary>
+        /// Plain gradient descent keeps no state, so synapses with the same learning rate share one optimizer
+        /// </summary>
+        private static IOptimizer OptimizerFor(SynapseDocument synapse, ICollection<LearningRateOptimizer> optimizers, Dictionary<float, IOptimizer> shared)
+        {
+            if (synapse.Optimizer != OptimizerTypes.Normal) return CreateOptimizer(synapse.Optimizer, synapse.LearningRate, optimizers);
+
+            float rate = synapse.LearningRate ?? 0;
+            if (!shared.TryGetValue(rate, out IOptimizer optimizer))
+            {
+                optimizer = CreateOptimizer(OptimizerTypes.Normal, synapse.LearningRate, optimizers);
+                shared.Add(rate, optimizer);
+            }
+
+            return optimizer;
         }
 
         private static IOptimizer CreateOptimizer(OptimizerTypes type, float? learningRate, ICollection<LearningRateOptimizer> optimizers)

@@ -25,7 +25,7 @@ namespace ANN.Net.Connections
 
         public void Propagate(NeuronPropagateEventArgs value)
         {
-            PropagateConnection(new NeuronPropagateEventArgs(value.Value * SharedWeight.Value)
+            Output.Propagate(new NeuronPropagateEventArgs(value.Value * SharedWeight.Value)
             {
                 ShouldActivate = value.ShouldActivate,
                 ClearValue = value.ClearValue
@@ -46,7 +46,7 @@ namespace ANN.Net.Connections
                 SharedWeight.AddGradient(delta * Input.Value);
             }
 
-            BackpropagateConnection?.Invoke(new BackpropagateEventArgs(delta, weighted, null)
+            Input?.Backpropagate(new BackpropagateEventArgs(delta, weighted, null)
             {
                 ShouldActivate = errorSignal.ShouldActivate
             });
