@@ -1,4 +1,6 @@
-﻿using ANN.Net.Abstractions.Enums;
+﻿using System;
+using System.Collections.Generic;
+using ANN.Net.Abstractions.Enums;
 
 namespace ANN.Net.Abstractions.Interfaces
 {
@@ -30,5 +32,17 @@ namespace ANN.Net.Abstractions.Interfaces
         long SizeInBytes { get; }
 
         Quad[] Propagate(params Quad[] values);
+
+        /// <summary>
+        /// Propagates without allocating (except inside convolutional networks): <paramref name="outputs"/> receives
+        /// <see cref="OutputCount"/> values
+        /// </summary>
+        void Propagate(ReadOnlySpan<float> inputs, Span<float> outputs);
+
+        /// <summary>
+        /// Outputs of many samples, computed together: weight rows are read once for a block of samples and blocks
+        /// run on several threads. The outputs are those of one sample at a time
+        /// </summary>
+        float[][] PropagateBatch(IReadOnlyList<float[]> inputs);
     }
 }

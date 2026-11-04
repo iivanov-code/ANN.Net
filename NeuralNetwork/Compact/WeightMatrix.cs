@@ -22,6 +22,9 @@ namespace ANN.Net.Compact
         [ThreadStatic]
         private static float[] scratch;
 
+        [ThreadStatic]
+        private static int[] rowScratch;
+
         private readonly float[] single;
         private readonly Half[] half;
         private readonly sbyte[] int8;
@@ -214,13 +217,27 @@ namespace ANN.Net.Compact
             switch (Precision)
             {
                 case WeightPrecision.Single:
+                {
+                    // the rows with a non-zero input, four at a time: one load and store of the outputs for four rows
+                    if (rowScratch == null || rowScratch.Length < Rows) rowScratch = new int[Math.Max(Rows, 256)];
+                    int[] rows = rowScratch;
+                    int used = 0;
                     for (int r = 0; r < Rows; r++)
                     {
-                        float x = input[r];
-                        if (x != 0) Axpy(x, single.AsSpan(r * Columns, Columns), output);
+                        if (input[r] != 0) rows[used++] = r;
                     }
 
+                    int k = 0;
+                    for (; k + 4 <= used; k += 4)
+                    {
+                        int r0 = rows[k], r1 = rows[k + 1], r2 = rows[k + 2], r3 = rows[k + 3];
+                        Axpy4(input[r0], single.AsSpan(r0 * Columns, Columns), input[r1], single.AsSpan(r1 * Columns, Columns),
+                              input[r2], single.AsSpan(r2 * Columns, Columns), input[r3], single.AsSpan(r3 * Columns, Columns), output);
+                    }
+
+                    for (; k < used; k++) Axpy(input[rows[k]], single.AsSpan(rows[k] * Columns, Columns), output);
                     break;
+                }
 
                 case WeightPrecision.Half:
                 {
@@ -254,6 +271,97 @@ namespace ANN.Net.Compact
             }
         }
 
+        /// <summary>
+        /// <see cref="MultiplyAdd(ReadOnlySpan{float}, Span{float})"/> for <paramref name="count"/> samples, sample b
+        /// reading <paramref name="inputs"/> from b * <paramref name="inputStride"/> and writing
+        /// <paramref name="outputs"/> from b * <paramref name="outputStride"/>. Every weight row is read (and converted)
+        /// once for all samples; the results are bit for bit those of one sample at a time
+        /// </summary>
+        public void MultiplyAddBatch(ReadOnlySpan<float> inputs, int inputStride, Span<float> outputs, int outputStride, int count)
+        {
+            // 32-bit rows need no conversion, so there is nothing to share between samples
+            if (IsSparse || count == 1 || Precision == WeightPrecision.Single)
+            {
+                for (int b = 0; b < count; b++)
+                {
+                    MultiplyAdd(inputs.Slice(b * inputStride, Rows), outputs.Slice(b * outputStride, Columns));
+                }
+
+                return;
+            }
+
+            Span<float> work = Scratch(Columns * (count + 1));
+            Span<float> row = work.Slice(0, Columns);
+            Span<float> sums = work.Slice(Columns, Columns * count);
+            if (Precision == WeightPrecision.Int8) sums.Clear();
+
+            for (int r = 0; r < Rows; r++)
+            {
+                bool used = false;
+                for (int b = 0; b < count && !used; b++) used = inputs[(b * inputStride) + r] != 0;
+                if (!used) continue;
+
+                ReadOnlySpan<float> weights;
+                switch (Precision)
+                {
+                    case WeightPrecision.Single:
+                        weights = single.AsSpan(r * Columns, Columns);
+                        break;
+                    case WeightPrecision.Half:
+                        ToSingle(half.AsSpan(r * Columns, Columns), row);
+                        weights = row;
+                        break;
+                    default:
+                        ToSingle(int8.AsSpan(r * Columns, Columns), row);
+                        weights = row;
+                        break;
+                }
+
+                for (int b = 0; b < count; b++)
+                {
+                    float x = inputs[(b * inputStride) + r];
+                    if (x == 0) continue;
+
+                    Axpy(x, weights, Precision == WeightPrecision.Int8 ? sums.Slice(b * Columns, Columns) : outputs.Slice(b * outputStride, Columns));
+                }
+            }
+
+            if (Precision != WeightPrecision.Int8) return;
+
+            for (int b = 0; b < count; b++)
+            {
+                Span<float> output = outputs.Slice(b * outputStride, Columns);
+                ReadOnlySpan<float> sum = sums.Slice(b * Columns, Columns);
+                for (int c = 0; c < Columns; c++) output[c] += sum[c] * scales[c];
+            }
+        }
+
+        /// <summary>
+        /// The integers as floats, unscaled
+        /// </summary>
+        private static void ToSingle(ReadOnlySpan<sbyte> source, Span<float> target)
+        {
+            int length = source.Length, i = 0;
+            if (Vector.IsHardwareAccelerated && length >= Vector<sbyte>.Count)
+            {
+                int lanes = Vector<float>.Count;
+                ref sbyte from = ref MemoryMarshal.GetReference(source);
+                ref float to = ref MemoryMarshal.GetReference(target);
+                for (; i <= length - Vector<sbyte>.Count; i += Vector<sbyte>.Count)
+                {
+                    Vector.Widen(Vector.LoadUnsafe(ref from, (nuint)i), out Vector<short> low, out Vector<short> high);
+                    Vector.Widen(low, out Vector<int> q0, out Vector<int> q1);
+                    Vector.Widen(high, out Vector<int> q2, out Vector<int> q3);
+                    Vector.ConvertToSingle(q0).StoreUnsafe(ref to, (nuint)i);
+                    Vector.ConvertToSingle(q1).StoreUnsafe(ref to, (nuint)(i + lanes));
+                    Vector.ConvertToSingle(q2).StoreUnsafe(ref to, (nuint)(i + (2 * lanes)));
+                    Vector.ConvertToSingle(q3).StoreUnsafe(ref to, (nuint)(i + (3 * lanes)));
+                }
+            }
+
+            for (; i < length; i++) target[i] = source[i];
+        }
+
         private void SparseMultiplyAdd(ReadOnlySpan<float> input, Span<float> output)
         {
             for (int r = 0; r < Rows; r++)
@@ -285,6 +393,42 @@ namespace ANN.Net.Compact
             }
 
             for (; i < length; i++) output[i] += x * row[i];
+        }
+
+        /// <summary>
+        /// Four <see cref="Axpy"/> in one pass, adding in the same order
+        /// </summary>
+        private static void Axpy4(float x0, ReadOnlySpan<float> row0, float x1, ReadOnlySpan<float> row1,
+                                  float x2, ReadOnlySpan<float> row2, float x3, ReadOnlySpan<float> row3, Span<float> output)
+        {
+            int length = row0.Length, i = 0;
+            if (Vector.IsHardwareAccelerated && length >= Vector<float>.Count)
+            {
+                Vector<float> f0 = new Vector<float>(x0), f1 = new Vector<float>(x1), f2 = new Vector<float>(x2), f3 = new Vector<float>(x3);
+                ref float s0 = ref MemoryMarshal.GetReference(row0);
+                ref float s1 = ref MemoryMarshal.GetReference(row1);
+                ref float s2 = ref MemoryMarshal.GetReference(row2);
+                ref float s3 = ref MemoryMarshal.GetReference(row3);
+                ref float target = ref MemoryMarshal.GetReference(output);
+                for (; i <= length - Vector<float>.Count; i += Vector<float>.Count)
+                {
+                    nuint at = (nuint)i;
+                    Vector<float> sum = Vector.LoadUnsafe(ref target, at) + (f0 * Vector.LoadUnsafe(ref s0, at));
+                    sum += f1 * Vector.LoadUnsafe(ref s1, at);
+                    sum += f2 * Vector.LoadUnsafe(ref s2, at);
+                    sum += f3 * Vector.LoadUnsafe(ref s3, at);
+                    sum.StoreUnsafe(ref target, at);
+                }
+            }
+
+            for (; i < length; i++)
+            {
+                float sum = output[i] + (x0 * row0[i]);
+                sum += x1 * row1[i];
+                sum += x2 * row2[i];
+                sum += x3 * row3[i];
+                output[i] = sum;
+            }
         }
 
         private static void AxpyInt8(float x, ReadOnlySpan<sbyte> row, Span<float> sums)

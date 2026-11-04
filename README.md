@@ -33,8 +33,8 @@ network = null;                                                // the original c
 
 | Network | Memory | One propagation |
 |---|---|---|
-| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.08 ms |
-| ResNet-18, 224 × 224 | 555 MB → 46.7 MB | 7.9 s → 0.28 s |
+| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.036 ms |
+| ResNet-18, 224 × 224 | 555 MB → 46.7 MB | 7.9 s → 0.08 s |
 
 ### 16-bit and 8-bit weights
 
@@ -50,16 +50,35 @@ byte[] onnx = OnnxExporter.Export(network, new OnnxExportOptions { WeightPrecisi
 | | Single | Half | Int8 |
 |---|---|---|---|
 | ResNet-18 weights | 46.7 MB | 23.4 MB | 11.7 MB |
-| ResNet-18, one image | 282 ms | 491 ms | 218 ms |
-| 784-256-256-10, one propagation | 0.08 ms | 0.34 ms | 0.19 ms |
+| ResNet-18, one image | 81 ms | 86 ms | 84 ms |
+| 784-256-256-10, one propagation | 36 µs | 137 µs | 42 µs |
 | Trained 10-48-48-4 classifier, test accuracy | 98.4 % | 98.4 % | 98.4 % |
 | Largest output change of that classifier | — | 0.001 | 0.014 |
 
-Small weights cost conversion time in dense layers, which read every weight once per propagation; convolutions reuse
-every weight many times and int8 is the fastest there. `OnnxExportOptions.WeightPrecision` writes the same
+16-bit weights cost conversion time when every weight is used once per propagation, as in dense layers; batches
+(below) and convolutions convert every weight row once for many inputs. `OnnxExportOptions.WeightPrecision` writes the same
 weights to ONNX (float16 initializers cast to float, int8 initializers with `DequantizeLinear`), so the exported
 graph computes what the compact network of that precision computes. ONNX Runtime may then also quantize the inputs
 of the matrix products it fuses with `DequantizeLinear`, which changes the outputs by a little more rounding.
+
+### Speed
+
+```csharp
+var outputs = new float[compact.OutputCount];
+compact.Propagate(inputs, outputs);                  // spans: no allocation in graph and layered networks
+float[][] results = compact.PropagateBatch(samples); // many samples on all processors
+```
+
+`PropagateBatch` gives exactly the outputs of one sample at a time. Graph and layered networks compute blocks of 32
+samples together, converting every 16-bit and 8-bit weight row once per block, and spread the blocks over the
+processors; convolutional networks spread the samples. A single convolution large enough spreads its output rows
+over the processors. Matrix products use SIMD and four weight rows per pass, and rows whose input is 0 (after ReLU,
+or the padding of a convolution) are skipped. On 4 cores:
+
+| | One sample | Batch, per sample |
+|---|---|---|
+| 784-256-256-10, single / half / int8 | 36 / 137 / 42 µs | 12 / 15 / 14 µs |
+| ResNet-18, single / half / int8 | 81 / 86 / 84 ms | 50 / 66 / 58 ms |
 
 ### Pruning
 

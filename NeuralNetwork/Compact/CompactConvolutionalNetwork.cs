@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Convolutional;
@@ -57,15 +58,50 @@ namespace ANN.Net.Compact
             if (values.Length != InputCount)
                 throw new ArgumentException($"Expected {InputCount} input values but found {values.Length}", nameof(values));
 
-            float[] current = values.Select(x => (float)x).ToArray();
-            foreach (IOperation operation in operations)
+            return Array.ConvertAll(Run(Array.ConvertAll(values, x => (float)x), parallel: true), x => (Quad)x);
+        }
+
+        public void Propagate(ReadOnlySpan<float> inputs, Span<float> outputs)
+        {
+            if (inputs.Length != InputCount)
+                throw new ArgumentException($"Expected {InputCount} input values but found {inputs.Length}", nameof(inputs));
+            if (outputs.Length < OutputCount)
+                throw new ArgumentException($"Expected room for {OutputCount} outputs but found {outputs.Length}", nameof(outputs));
+
+            Run(inputs.ToArray(), parallel: true).CopyTo(outputs);
+        }
+
+        /// <summary>
+        /// Samples run on several threads, each convolution on one
+        /// </summary>
+        public float[][] PropagateBatch(IReadOnlyList<float[]> inputs)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+            for (int i = 0; i < inputs.Count; i++)
             {
-                current = operation.Run(current);
+                if (inputs[i]?.Length != InputCount)
+                    throw new ArgumentException($"Sample {i} has {inputs[i]?.Length ?? 0} values instead of {InputCount}", nameof(inputs));
             }
 
-            Quad[] outputs = current.Select(x => (Quad)x).ToArray();
-            if (softMax) TransformerUtils.SoftMax(outputs);
-            return outputs;
+            var results = new float[inputs.Count][];
+            if (inputs.Count == 1) results[0] = Run((float[])inputs[0].Clone(), parallel: true);
+            else Parallel.For(0, inputs.Count, i => results[i] = Run((float[])inputs[i].Clone(), parallel: false));
+            return results;
+        }
+
+        private float[] Run(float[] values, bool parallel)
+        {
+            float[] current = values;
+            foreach (IOperation operation in operations)
+            {
+                current = operation.Run(current, parallel);
+            }
+
+            if (!softMax) return current;
+
+            Quad[] outputs = Array.ConvertAll(current, x => (Quad)x);
+            TransformerUtils.SoftMax(outputs);
+            return Array.ConvertAll(outputs, x => (float)x);
         }
 
         private static List<IOperation> Compile(IReadOnlyList<IConvolutionalLayer> layers, CompactOptions options)
@@ -127,18 +163,9 @@ namespace ANN.Net.Compact
             return weights;
         }
 
-        private static void Activate(IActivationFunction function, float[] values)
-        {
-            if (function == null) return;
+        private static void Activate(CompactActivation activation, float[] values) => activation.Apply(values);
 
-            for (int i = 0; i < values.Length; i++)
-            {
-                Quad value = values[i];
-                values[i] = function.Activation(ref value);
-            }
-        }
-
-        private static IActivationFunction Function(ActivationTypes type) => type == ActivationTypes.Identity ? null : NetworkUtils.GetActivation(type);
+        private static CompactActivation Function(ActivationTypes type) => CompactActivation.Of(type);
 
         private interface IOperation
         {
@@ -163,7 +190,8 @@ namespace ANN.Net.Compact
             /// </summary>
             int Count { get; }
 
-            float[] Run(float[] input);
+            /// <param name="parallel">Whether a large operation may spread over several threads</param>
+            float[] Run(float[] input, bool parallel);
         }
 
         /// <summary>
@@ -178,7 +206,7 @@ namespace ANN.Net.Compact
             private readonly Shape input, output;
             private readonly int kernelHeight, kernelWidth, stride, padding;
             private readonly float[] bias;
-            private readonly IActivationFunction activation;
+            private readonly CompactActivation activation;
             private float[] transposed;
             private WeightMatrix weights;
 
@@ -242,57 +270,105 @@ namespace ANN.Net.Compact
 
             public int Count => 1;
 
-            public float[] Run(float[] values)
+            /// <summary>
+            /// Multiply-adds of one image; above this the output rows are spread over the processors
+            /// </summary>
+            private const long ParallelWork = 1 << 21;
+
+            public float[] Run(float[] values, bool parallel)
             {
                 var result = new float[output.Size];
-                int channels = input.Channels, height = input.Height, width = input.Width;
-                int filters = output.Channels, positions = output.Height * output.Width;
-                int patchSize = weights.Rows;
+                long work = (long)output.Height * output.Width * weights.Rows * weights.Columns;
 
-                if (buffer == null || buffer.Length < patchSize + filters) buffer = new float[patchSize + filters];
-                Span<float> patch = buffer.AsSpan(0, patchSize);
-                Span<float> sums = buffer.AsSpan(patchSize, filters);
-
-                for (int oy = 0; oy < output.Height; oy++)
+                if (parallel && Environment.ProcessorCount > 1 && output.Height > 1 && work >= ParallelWork)
                 {
-                    int top = (oy * stride) - padding;
-                    for (int ox = 0; ox < output.Width; ox++)
-                    {
-                        int left = (ox * stride) - padding;
-                        int k = 0;
-                        for (int c = 0; c < channels; c++)
-                        {
-                            int channelStart = c * height * width;
-                            for (int ky = 0; ky < kernelHeight; ky++)
-                            {
-                                int iy = top + ky;
-                                if (iy < 0 || iy >= height)
-                                {
-                                    patch.Slice(k, kernelWidth).Clear();
-                                    k += kernelWidth;
-                                    continue;
-                                }
-
-                                int rowStart = channelStart + (iy * width);
-                                for (int kx = 0; kx < kernelWidth; kx++)
-                                {
-                                    int ix = left + kx;
-                                    patch[k++] = ix >= 0 && ix < width ? values[rowStart + ix] : 0;
-                                }
-                            }
-                        }
-
-                        if (bias == null) sums.Clear();
-                        else bias.CopyTo(sums);
-                        weights.MultiplyAdd(patch, sums);
-
-                        int position = (oy * output.Width) + ox;
-                        for (int f = 0; f < filters; f++) result[(f * positions) + position] = sums[f];
-                    }
+                    Parallel.For(0, output.Height, oy => Rows(values, result, oy, oy + 1));
+                }
+                else
+                {
+                    Rows(values, result, 0, output.Height);
                 }
 
                 Activate(activation, result);
                 return result;
+            }
+
+            /// <summary>
+            /// Output positions whose patches are multiplied together, so that 16-bit and 8-bit weight rows are converted
+            /// once per tile instead of once per position
+            /// </summary>
+            private const int Tile = 16;
+
+            private void Rows(float[] values, float[] result, int firstRow, int endRow)
+            {
+                int filters = output.Channels, positions = output.Height * output.Width;
+                int patchSize = weights.Rows;
+
+                int needed = Tile * (patchSize + filters);
+                if (buffer == null || buffer.Length < needed) buffer = new float[needed];
+                Span<float> patches = buffer.AsSpan(0, Tile * patchSize);
+                Span<float> sums = buffer.AsSpan(Tile * patchSize, Tile * filters);
+
+                int end = endRow * output.Width;
+                for (int first = firstRow * output.Width; first < end; first += Tile)
+                {
+                    int count = Math.Min(Tile, end - first);
+                    for (int t = 0; t < count; t++)
+                    {
+                        int position = first + t;
+                        Patch(values, position / output.Width, position % output.Width, patches.Slice(t * patchSize, patchSize));
+
+                        Span<float> sum = sums.Slice(t * filters, filters);
+                        if (bias == null) sum.Clear();
+                        else bias.CopyTo(sum);
+                    }
+
+                    weights.MultiplyAddBatch(patches, patchSize, sums, filters, count);
+
+                    for (int t = 0; t < count; t++)
+                    {
+                        ReadOnlySpan<float> sum = sums.Slice(t * filters, filters);
+                        for (int f = 0; f < filters; f++) result[(f * positions) + first + t] = sum[f];
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Input values under the kernel at output position (oy, ox), channel by channel, 0 outside the image
+            /// </summary>
+            private void Patch(float[] values, int oy, int ox, Span<float> patch)
+            {
+                int channels = input.Channels, height = input.Height, width = input.Width;
+                int top = (oy * stride) - padding, left = (ox * stride) - padding;
+                int k = 0;
+                for (int c = 0; c < channels; c++)
+                {
+                    int channelStart = c * height * width;
+                    for (int ky = 0; ky < kernelHeight; ky++)
+                    {
+                        int iy = top + ky;
+                        if (iy < 0 || iy >= height)
+                        {
+                            patch.Slice(k, kernelWidth).Clear();
+                            k += kernelWidth;
+                            continue;
+                        }
+
+                        int rowStart = channelStart + (iy * width);
+                        if (left >= 0 && left + kernelWidth <= width)
+                        {
+                            values.AsSpan(rowStart + left, kernelWidth).CopyTo(patch.Slice(k, kernelWidth));
+                            k += kernelWidth;
+                            continue;
+                        }
+
+                        for (int kx = 0; kx < kernelWidth; kx++)
+                        {
+                            int ix = left + kx;
+                            patch[k++] = ix >= 0 && ix < width ? values[rowStart + ix] : 0;
+                        }
+                    }
+                }
             }
         }
 
@@ -300,7 +376,7 @@ namespace ANN.Net.Compact
         {
             private readonly int positions;
             private readonly float[] scale, shift;
-            private readonly IActivationFunction activation;
+            private readonly CompactActivation activation;
 
             public ScaleShift(BatchNormalizationLayer layer)
             {
@@ -324,7 +400,7 @@ namespace ANN.Net.Compact
 
             public int Count => 1;
 
-            public float[] Run(float[] values)
+            public float[] Run(float[] values, bool parallel)
             {
                 var result = new float[values.Length];
                 for (int c = 0; c < scale.Length; c++)
@@ -349,7 +425,7 @@ namespace ANN.Net.Compact
 
             public int Count => 1;
 
-            public float[] Run(float[] values)
+            public float[] Run(float[] values, bool parallel)
             {
                 Shape input = layer.InputShape, output = layer.OutputShape;
                 var result = new float[output.Size];
@@ -400,7 +476,7 @@ namespace ANN.Net.Compact
 
             public int Count => 1;
 
-            public float[] Run(float[] values)
+            public float[] Run(float[] values, bool parallel)
             {
                 int positions = input.Height * input.Width;
                 var result = new float[input.Channels];
@@ -418,7 +494,7 @@ namespace ANN.Net.Compact
         private sealed class Residual : IOperation
         {
             private readonly IReadOnlyList<IOperation> main, shortcut;
-            private readonly IActivationFunction activation;
+            private readonly CompactActivation activation;
 
             public Residual(IReadOnlyList<IOperation> main, IReadOnlyList<IOperation> shortcut, ActivationTypes activationType)
             {
@@ -440,10 +516,10 @@ namespace ANN.Net.Compact
 
             public int Count => 1 + main.Concat(shortcut).Sum(x => x.Count);
 
-            public float[] Run(float[] values)
+            public float[] Run(float[] values, bool parallel)
             {
-                float[] result = main.Aggregate(values, (value, operation) => operation.Run(value));
-                float[] added = shortcut.Aggregate(values, (value, operation) => operation.Run(value));
+                float[] result = main.Aggregate(values, (value, operation) => operation.Run(value, parallel));
+                float[] added = shortcut.Aggregate(values, (value, operation) => operation.Run(value, parallel));
 
                 var sum = new float[result.Length];
                 for (int i = 0; i < sum.Length; i++) sum[i] = result[i] + added[i];
@@ -456,7 +532,7 @@ namespace ANN.Net.Compact
         {
             private readonly int inputs, outputs;
             private readonly float[] bias;
-            private readonly IActivationFunction activation;
+            private readonly CompactActivation activation;
             private float[] pending;
             private WeightMatrix weights;
 
@@ -483,7 +559,7 @@ namespace ANN.Net.Compact
 
             public int Count => 1;
 
-            public float[] Run(float[] values)
+            public float[] Run(float[] values, bool parallel)
             {
                 var result = (float[])bias.Clone();
                 weights.MultiplyAdd(values, result);
