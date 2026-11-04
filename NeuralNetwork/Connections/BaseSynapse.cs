@@ -7,30 +7,28 @@ namespace ANN.Net.Connections
 {
     public abstract class BaseSynapse
     {
+        /// <param name="idGenerator">Only remote synapses take an identity from it; local synapses need none, which saves
+        /// a string per synapse</param>
         public BaseSynapse(INeuron input, INeuron output, IUniqueIdentityGenerator idGenerator)
         {
-            this.Id = idGenerator.GenerateUniqueIdentity();
             this.Input = input;
             this.Output = output;
-
-            if (output != null)
-            {
-                PropagateConnection = output.Propagate;
-            }
-
-            if (input != null)
-            {
-                BackpropagateConnection = input.Backpropagate;
-            }
         }
 
+        /// <summary>
+        /// Backpropagate of the input neuron. Synapses call the neuron directly; no delegate is stored per synapse
+        /// </summary>
+        public Action<BackpropagateEventArgs> BackpropagateConnection => Input == null ? null : Input.Backpropagate;
 
-        public Action<BackpropagateEventArgs> BackpropagateConnection { get; protected set; }
-        public Action<NeuronPropagateEventArgs> PropagateConnection { get; protected set; }
+        /// <summary>
+        /// Propagate of the output neuron. Synapses call the neuron directly; no delegate is stored per synapse
+        /// </summary>
+        public Action<NeuronPropagateEventArgs> PropagateConnection => Output == null ? null : Output.Propagate;
 
         protected IOptimizer optimizer;
 
-        public string Id { get; set; }
+        internal IOptimizer Optimizer => optimizer;
+
         public Quad Weight { get; protected internal set; }
         public INeuron Input { get; protected set; }
         public INeuron Output { get; protected set; }

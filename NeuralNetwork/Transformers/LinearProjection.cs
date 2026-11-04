@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Transformers
 {
@@ -16,8 +17,8 @@ namespace ANN.Net.Transformers
     {
         private readonly Quad[,] weights;
         private readonly Quad[] biases;
-        private readonly IOptimizer[,] weightOptimizers;
-        private readonly IOptimizer[] biasOptimizers;
+        private readonly ArrayOptimizer weightOptimizer;
+        private readonly ArrayOptimizer biasOptimizer;
         private Quad[][] lastInputs;
 
         public LinearProjection(int inputsCount,
@@ -31,25 +32,33 @@ namespace ANN.Net.Transformers
             if (optimizers == null) throw new ArgumentNullException(nameof(optimizers));
 
             this.weights = new Quad[inputsCount, outputsCount];
-            this.weightOptimizers = new IOptimizer[inputsCount, outputsCount];
+            this.weightOptimizer = ArrayOptimizer.Create(optimizerType, inputsCount * outputsCount, optimizers);
             this.biases = new Quad[outputsCount];
-            this.biasOptimizers = new IOptimizer[outputsCount];
+            this.biasOptimizer = ArrayOptimizer.Create(optimizerType, outputsCount, optimizers);
 
             for (int i = 0; i < inputsCount; i++)
             {
                 for (int j = 0; j < outputsCount; j++)
                 {
                     this.weights[i, j] = TransformerUtils.InitialWeight(initializationType, inputsCount, outputsCount);
-                    this.weightOptimizers[i, j] = TransformerUtils.CreateOptimizer(optimizerType, optimizers);
                 }
             }
 
             for (int j = 0; j < outputsCount; j++)
             {
                 this.biases[j] = 0;
-                this.biasOptimizers[j] = TransformerUtils.CreateOptimizer(optimizerType, optimizers);
             }
         }
+
+        private LinearProjection(LinearProjection master, ReplicaContext context)
+        {
+            this.weights = master.weights;
+            this.biases = master.biases;
+            this.weightOptimizer = context.Link(master.weightOptimizer, master.weights);
+            this.biasOptimizer = context.Link(master.biasOptimizer, master.biases);
+        }
+
+        public LinearProjection Replicate(ReplicaContext context) => new LinearProjection(this, context);
 
         public int InputsCount => this.weights.GetLength(0);
 
@@ -136,14 +145,17 @@ namespace ANN.Net.Transformers
             {
                 for (int j = 0; j < outputsCount; j++)
                 {
-                    this.weights[i, j] = this.weightOptimizers[i, j].Calculate(weightGradients[i, j], this.weights[i, j]);
+                    this.weights[i, j] = this.weightOptimizer.Calculate((i * outputsCount) + j, weightGradients[i, j], this.weights[i, j]);
                 }
             }
 
             for (int j = 0; j < outputsCount; j++)
             {
-                this.biases[j] = this.biasOptimizers[j].Calculate(biasGradients[j], this.biases[j]);
+                this.biases[j] = this.biasOptimizer.Calculate(j, biasGradients[j], this.biases[j]);
             }
+
+            this.weightOptimizer.Advance();
+            this.biasOptimizer.Advance();
 
             return inputGradients;
         }

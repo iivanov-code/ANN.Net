@@ -133,7 +133,8 @@ namespace ANN.Net.Tests.Networks
                 expected += Sigmoid(sum) * (float)outputSynapse.Weight;
             }
 
-            Assert.Equal(expected, (float)outputs[0], 5);
+            // a tolerance, not rounding to 5 decimals: rounding fails whenever the double and float results straddle a rounding boundary
+            Assert.Equal(expected, (float)outputs[0], 1e-5);
         }
 
         [Fact]
@@ -161,7 +162,8 @@ namespace ANN.Net.Tests.Networks
                 expected += Sigmoid(sum) * (float)hidden[j].Outputs.Cast<BaseSynapse>().Single().Weight;
             }
 
-            Assert.Equal(expected, (float)outputs[0], 5);
+            // a tolerance, not rounding to 5 decimals: rounding fails whenever the double and float results straddle a rounding boundary
+            Assert.Equal(expected, (float)outputs[0], 1e-5);
         }
 
         [Fact]

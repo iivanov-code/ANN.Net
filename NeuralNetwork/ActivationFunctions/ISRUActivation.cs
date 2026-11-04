@@ -13,6 +13,11 @@ namespace ANN.Net.ActivationFunctions
     {
         private Quad alpha;
 
+        /// <summary>
+        /// Shared instance with alpha = 1, used by networks that pick activations by <c>ActivationTypes</c>
+        /// </summary>
+        public static ISRUActivation Instance { get; } = new ISRUActivation(1);
+
         public ISRUActivation(Quad alpha)
         {
             this.alpha = alpha;

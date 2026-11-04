@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Interfaces;
@@ -28,6 +29,7 @@ namespace ANN.Net
         /// </summary>
         internal static INetwork BuildFFN(NetworkSettings settings, IEnumerable<INeuron> additionalInputs, RecurrentLayerSettings[] hiddenSettings)
         {
+            using System.IDisposable seed = Utils.NetworkUtils.SeedRandom(settings.Seed);
             Network ffn = new Network(settings);
             NetworkBuilder builder = NetworkBuilder.Create();
 
@@ -59,6 +61,82 @@ namespace ANN.Net
                                                            !settings.OutputApplySoftMax,
                                                            ffn.Optimizers);
             return ffn;
+        }
+
+        /// <summary>
+        /// Builds the fully connected network <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/> builds,
+        /// with one weight matrix per layer instead of neuron and synapse objects. With the same settings and
+        /// <see cref="NetworkSettings.Seed"/> it starts from the same weights and computes and trains bit-identically,
+        /// using a fraction of the memory and time. Hidden layers must be fully connected layers of normal neurons
+        /// </summary>
+        public static IMatrixNetwork BuildMatrixFFN(NetworkSettings settings, params RecurrentLayerSettings[] hiddenSettings)
+        {
+            return Matrix.MatrixNetwork.Build(settings, hiddenSettings);
+        }
+
+        /// <summary>
+        /// Converts a fully connected network of <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/> into a
+        /// matrix network with the same weights, optimizer types and learning rates. The state of optimizers such as Adam
+        /// starts afresh
+        /// </summary>
+        public static IMatrixNetwork ToMatrix(INetwork network)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+
+            return network switch
+            {
+                IMatrixNetwork matrix => matrix,
+                Network layered => Matrix.MatrixNetwork.FromNetwork(layered),
+                _ => throw new NotSupportedException($"A {network.GetType().Name} cannot be converted to a matrix network")
+            };
+        }
+
+        /// <summary>
+        /// Builds a network of networks: every node holds a whole network (matrix, neuron, graph, convolutional,
+        /// transformer through <see cref="AsVectorNetwork(ISequenceNetwork, int)"/>, or another nested network) that
+        /// takes a vector and gives a vector. Backpropagation trains the networks of all nodes together
+        /// </summary>
+        public static INestedNetwork BuildNested(NestedNetworkSettings settings)
+        {
+            return Nested.NestedNetwork.Build(settings);
+        }
+
+        /// <summary>
+        /// The network as a vector network for a node of a nested network. Networks of <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/>,
+        /// <see cref="BuildMatrixFFN"/>, <see cref="BuildGraph"/>, <see cref="BuildConvolutional"/> and <see cref="BuildNested"/> are vector networks
+        /// </summary>
+        public static IVectorNetwork AsVectorNetwork(INetwork network)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+            return network as IVectorNetwork ?? throw new NotSupportedException($"A {network.GetType().Name} cannot pass gradients and cannot be inside a nested network");
+        }
+
+        /// <summary>
+        /// A transformer as a vector network for sequences of <paramref name="sequenceLength"/> tokens: the vectors in
+        /// and out hold the tokens one after the other
+        /// </summary>
+        public static IVectorNetwork AsVectorNetwork(ISequenceNetwork network, int sequenceLength)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+            if (network is not TransformerNetwork transformer) throw new NotSupportedException($"A {network.GetType().Name} cannot be inside a nested network");
+            return new Nested.SequenceVectorNetwork(transformer, sequenceLength);
+        }
+
+        /// <summary>
+        /// Builds a feed-forward network with an arbitrary acyclic topology, such as the phenotype of a NEAT genome.
+        /// Disabled connections and every neuron that is not on a path from an input to an output are left out
+        /// </summary>
+        public static IGraphNetwork BuildGraph(GraphNetworkSettings settings)
+        {
+            return GraphNetwork.Build(settings);
+        }
+
+        /// <summary>
+        /// Builds a convolutional network: convolution, pooling and dense layers followed by a dense output layer
+        /// </summary>
+        public static IConvolutionalNetwork BuildConvolutional(ConvolutionalNetworkSettings settings)
+        {
+            return new Convolutional.ConvolutionalNetwork(settings);
         }
 
         public static INetwork BuildRNN(NetworkSettings settings, HiddenLayerSettings hiddenSettings)

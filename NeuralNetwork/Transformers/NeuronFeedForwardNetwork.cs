@@ -78,6 +78,9 @@ namespace ANN.Net.Transformers
 
         public Network Network => this.network;
 
+        public IFeedForwardNetwork Replicate(Optimizers.ReplicaContext context) =>
+            throw new NotSupportedException("Transformers with neuron feed-forward networks cannot be trained in batches; use FeedForwardType.Matrix");
+
         public Quad[][] Propagate(Quad[][] inputs)
         {
             if (inputs == null) throw new ArgumentNullException(nameof(inputs));

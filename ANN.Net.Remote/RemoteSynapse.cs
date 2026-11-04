@@ -23,10 +23,16 @@ namespace ANN.Net.Remote
             if (input == null) throw new ArgumentNullException(nameof(input));
             if (connection == null) throw new ArgumentNullException(nameof(connection));
 
+            this.Id = identityGenerator?.GenerateUniqueIdentity() ?? throw new ArgumentNullException(nameof(identityGenerator));
             this.Connection = connection;
             this.Weight = 1;
             connection.Attach(this);
         }
+
+        /// <summary>
+        /// Identity the two sides of the wire use to match values and gradients
+        /// </summary>
+        public string Id { get; }
 
         public ISynapseConnection Connection { get; }
 
@@ -54,7 +60,7 @@ namespace ANN.Net.Remote
             if (errorSignal == null) throw new ArgumentNullException(nameof(errorSignal));
 
             Quad gradient = errorSignal.ErrorSignal;
-            this.BackpropagateConnection(new BackpropagateEventArgs(gradient, gradient, null)
+            this.Input.Backpropagate(new BackpropagateEventArgs(gradient, gradient, null)
             {
                 ShouldActivate = errorSignal.ShouldActivate
             });

@@ -20,11 +20,358 @@ C# implementation of standart deep neural network, with different types of neuro
   </p>
 <br>
 
+## Compact networks for inference
+
+A trained network keeps an object for every neuron, synapse, layer and optimizer. `NetworkCompactor.Compact`
+copies it into flat weight arrays for inference:
+
+```csharp
+ICompactNetwork compact = NetworkCompactor.Compact(network);   // layered, graph or convolutional
+Quad[] outputs = compact.Propagate(inputs);                    // the same values as network.Propagate
+network = null;                                                // the original can now be freed
+```
+
+| Network | Memory | One propagation |
+|---|---|---|
+| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.036 ms |
+| ResNet-18, 224 × 224 | 555 MB → 46.7 MB | 7.9 s → 0.08 s |
+
+### 16-bit and 8-bit weights
+
+`CompactOptions.Precision` stores the weight matrices as 16-bit floats or as 8-bit integers with one scale per neuron
+or filter (symmetric quantization, the largest weight maps to ±127). Biases, input normalization and batch
+normalization stay 32-bit.
+
+```csharp
+ICompactNetwork small = NetworkCompactor.Compact(network, new CompactOptions { Precision = WeightPrecision.Int8 });
+byte[] onnx = OnnxExporter.Export(network, new OnnxExportOptions { WeightPrecision = WeightPrecision.Int8 });
+```
+
+| | Single | Half | Int8 |
+|---|---|---|---|
+| ResNet-18 weights | 46.7 MB | 23.4 MB | 11.7 MB |
+| ResNet-18, one image | 81 ms | 86 ms | 84 ms |
+| 784-256-256-10, one propagation | 36 µs | 137 µs | 42 µs |
+| Trained 10-48-48-4 classifier, test accuracy | 98.4 % | 98.4 % | 98.4 % |
+| Largest output change of that classifier | — | 0.001 | 0.014 |
+
+16-bit weights cost conversion time when every weight is used once per propagation, as in dense layers; batches
+(below) and convolutions convert every weight row once for many inputs. `OnnxExportOptions.WeightPrecision` writes the same
+weights to ONNX (float16 initializers cast to float, int8 initializers with `DequantizeLinear`), so the exported
+graph computes what the compact network of that precision computes. ONNX Runtime may then also quantize the inputs
+of the matrix products it fuses with `DequantizeLinear`, which changes the outputs by a little more rounding.
+
+### Speed
+
+```csharp
+var outputs = new float[compact.OutputCount];
+compact.Propagate(inputs, outputs);                  // spans: no allocation in graph and layered networks
+float[][] results = compact.PropagateBatch(samples); // many samples on all processors
+```
+
+`PropagateBatch` gives exactly the outputs of one sample at a time. Graph and layered networks compute blocks of 32
+samples together, converting every 16-bit and 8-bit weight row once per block, and spread the blocks over the
+processors; convolutional networks spread the samples. A single convolution large enough spreads its output rows
+over the processors. Matrix products use SIMD and four weight rows per pass, and rows whose input is 0 (after ReLU,
+or the padding of a convolution) are skipped. On 4 cores:
+
+| | One sample | Batch, per sample |
+|---|---|---|
+| 784-256-256-10, single / half / int8 | 36 / 137 / 42 µs | 12 / 15 / 14 µs |
+| ResNet-18, single / half / int8 | 81 / 86 / 84 ms | 50 / 66 / 58 ms |
+
+### Pruning
+
+`CompactOptions.PruneThreshold` removes the weights below a magnitude, `PruneFraction` the given share of the
+smallest weights across the whole network. In neuron graphs a neuron left without inputs computes a constant that is
+added to the biases of the neurons it feeds, and neurons that feed nothing any more are removed, so whole branches
+disappear. Matrices that end up mostly zero are stored as their non-zero weights with column indexes (6 bytes per
+float weight, 3 per int8 weight), which pays off once less than about a third (int8: a sixth) of them remain.
+Biases are never pruned.
+
+```csharp
+var options = new CompactOptions { PruneFraction = 0.8, Precision = WeightPrecision.Int8 };
+ICompactNetwork pruned = NetworkCompactor.Compact(network, options);
+```
+
+| Trained 10-48-48-4 classifier | Accuracy | Size |
+|---|---|---|
+| Not pruned | 98.4 % | 12,744 bytes |
+| 70 % of the weights pruned | 98.8 % | 8,212 bytes (int8: 2,863) |
+| 80 % pruned | 97.9 % | 6,552 bytes (int8: 2,358) |
+| 90 % pruned | 26.8 % | 2,378 bytes |
+
+Pruning does not retrain the network, so how much it tolerates depends on the network; check the accuracy.
+
+### Saving compact networks
+
+```csharp
+CompactNetworkSerializer.Save(compact, "model.annc");
+ICompactNetwork loaded = CompactNetworkSerializer.Load("model.annc");
+```
+
+The binary file holds the weights as they are stored (32-bit, 16-bit or 8-bit, dense or sparse), so it is about
+`SizeInBytes` long — 11.7 MB for an int8 ResNet-18 — and the loaded network computes bit for bit what the saved one
+computes. Loading checks that every operation fits the one before it and throws `InvalidDataException` for a damaged
+file. A compact network cannot be trained; save the network itself with `NetworkSerializer` for that, or export it
+to ONNX for other tools.
+
+Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
+batch normalizations that follow a convolution are folded into it. Convolutions run as one matrix product per
+output position over all filters, with SIMD. Convolutional networks compute as with
+`Training = false`. A compact network is a snapshot: training the original later does not change it. It keeps no
+state between calls, so one copy can serve several threads at once. `NetworkCompactor.CompactGraph(settings)`
+compiles `GraphNetworkSettings` straight into a compact network without building the graph network first, which is
+how NEAT evaluates its genomes.
+
+### Transformers
+
+`NetworkCompactor.CompactSequence(transformer, options)` copies a transformer into one weight matrix per projection,
+applied to all tokens of a sequence at once. With 32-bit weights it computes bit for bit what the transformer
+computes; precision, pruning, `PropagateBatch` and `CompactNetworkSerializer.Save`/`LoadSequence` work as for other
+compact networks.
+
+| d = 256, 8 heads, 6 layers, 4.8 M parameters, 64 tokens | Memory | One sequence | Batch of 8, per sequence |
+|---|---|---|---|
+| Transformer, trained with Adam | 57.4 MB | 570 ms | — |
+| Compact, single | 19.3 MB | 40 ms | 15 ms |
+| Compact, half | 9.7 MB | 41 ms | 13 ms |
+| Compact, int8 | 5.0 MB | 39 ms | 15 ms |
+
+Recurrent networks cannot be compacted: `BuildRNN` and `BuildCellRNN` return null, LSTM and GRU cells are not
+implemented, and layers with `NeuronType.RNN` connect the neurons of a layer to each other within one propagation
+instead of to the previous time step, so they keep no state between inputs.
+
+## Training in batches on all processors
+
+Matrix, convolutional and transformer networks train mini-batches on all processors with `TrainBatch`:
+
+```csharp
+Quad loss = network.TrainBatch(inputs, targets);                                    // mean loss of the batch
+loss = network.TrainBatch(inputs, targets, new BatchOptions { ChunkSize = 4, MaxDegreeOfParallelism = 2 });
+```
+
+The batch is split into chunks of `ChunkSize` samples (8 by default). Every chunk runs on one thread on a replica of
+the network that shares its weights but keeps its own per-sample state, and whose optimizers only add up gradients.
+The weights do not change during the batch; afterwards every weight is updated once with the mean gradient, the
+chunks added in a fixed order. The result therefore depends on the chunk size but not on the number of processors:
+the same training gives the same network on every machine. A batch of one sample trains exactly like `Propagate`
+and `Backpropagate`. Batch normalization normalizes every image by its own statistics, as when training image by
+image, and its running averages advance image by image in batch order. Every chunk keeps a copy of the gradients, so a
+batch needs about (batch size / chunk size) x 4 bytes per parameter more memory; the replicas are kept for the next
+batch. Transformers with neuron feed-forward networks cannot train in batches.
+
+| 4 cores, Adam | One sample at a time | `TrainBatch` | |
+|---|---|---|---|
+| Matrix 784-256-256-10, batch 64 | 2,485 µs per sample | 720 µs | 3.5× |
+| Small ResNet, 3 × 32 × 32, batch 32 | 119 ms per image | 34 ms | 3.5× |
+| Transformer d = 64, 32 tokens, batch 32 | 15.6 ms per sequence | 4.2 ms | 3.7× |
+
+## How many parameters fit in memory
+
+Measured bytes per weight (for a 256 M parameter matrix network the measurement matches to two decimals) and what
+that means for 32 GB (32 GiB, before the room the operating system and runtime need):
+
+| Network | Bytes per parameter | Parameters in 32 GB |
+|---|---|---|
+| Neuron network (`BuildFFN`), plain gradient descent | 70 | 0.49 billion |
+| Neuron network, Adam | 125 | 0.27 billion |
+| Graph network (`BuildGraph`, NEAT), per connection | ≈ 200 | 0.17 billion |
+| Matrix, convolutional or transformer network, plain gradient descent | 4 | 8.6 billion |
+| … Momentum, Nesterov or RMSprop (one state value per weight) | 8 | 4.3 billion |
+| … Adam, AdaMax or Nadam (two) | 12 | 2.9 billion |
+| … AmsGrad (three) | 16 | 2.1 billion |
+| Compact, 32-bit | 4 | 8.6 billion |
+| Compact, 16-bit | 2 | 17 billion |
+| Compact, 8-bit | 1 | 34 billion |
+| Compact, 8-bit, 80 % pruned (3 bytes per kept weight) | 0.6 per original weight | 11 billion kept, of a 57 billion network |
+
+One weight matrix (a layer, a convolution, a projection) holds at most about 2.1 billion weights, the length limit
+of a .NET array. Training also keeps the activations of the last propagation (small for layered networks, tens of
+MB per image for ResNet-18), compacting needs the original and the copy at once, and the JSON files of
+`NetworkSerializer` hold an object per weight, so they do not suit networks of billions of weights; compact networks
+save in their own binary format.
+
+## Optimizers
+
+Every trainable value is updated by an optimizer of the network's `OptimizerType`: convolutional networks,
+transformers and embeddings keep one optimizer per weight array with its state in arrays (4 bytes per value for
+`Normal`, 12 for Adam), layered and graph networks one per synapse, shared by a layer for `Normal`. Learning rates start at 0, so set them
+before training (`network.Optimizers`):
+
+| `OptimizerTypes` | Update | Typical learning rate |
+|---|---|---|
+| `Normal` | plain gradient descent | 0.01 – 0.1 |
+| `Momentum` | classical momentum (β = 0.9) | 0.01 |
+| `Nesterov` | Nesterov momentum, PyTorch form (β = 0.9) | 0.01 |
+| `Adam` | Adam (β1 = 0.9, β2 = 0.999, ε = 1e-8) | 0.001 – 0.01 |
+| `AdaMax` | Adam with the infinity norm | about twice the Adam rate |
+| `Nadam` | Adam with Nesterov momentum | 0.001 – 0.01 |
+| `AmsGrad` | Adam with the largest squared average so far | 0.001 – 0.01 |
+| `RMSprop` | moving average of squared gradients (ρ = 0.9) | 0.001 – 0.005 |
+
+The tests check every optimizer against its published update rule and train a layered network, a graph network, a
+1-D convolutional layered network, a convolutional network and a transformer with each of them.
+
+## Convolutional networks
+
+`NetworkFactory.BuildConvolutional` builds a convolutional network from convolution, pooling and dense layers,
+followed by a dense output layer. An image goes in as a flat array of channels × height × width values in channel,
+row, column order (as in NCHW).
+
+```csharp
+IConvolutionalNetwork cnn = NetworkFactory.BuildConvolutional(new ConvolutionalNetworkSettings
+{
+    InputChannels = 1,
+    InputHeight = 28,
+    InputWidth = 28,
+    Layers =
+    {
+        new ConvolutionLayerSettings { Filters = 8, KernelSize = 3, Padding = 1, ActivationType = ActivationTypes.RELU },
+        new PoolingLayerSettings { Type = PoolingType.Max, Size = 2 },
+        new ConvolutionLayerSettings { Filters = 16, KernelSize = 3, Stride = 1 },
+        new PoolingLayerSettings { Size = 2 },
+        new DenseLayerSettings { NeuronsCount = 32, ActivationType = ActivationTypes.RELU }
+    },
+    OutputDimension = 10,
+    OutputApplySoftMax = true,           // trained with cross entropy; otherwise the squared error is used
+    OptimizerType = OptimizerTypes.Adam
+});
+
+foreach (LearningRateOptimizer optimizer in cnn.Optimizers)
+{
+    optimizer.LearningRate = 0.001f;
+}
+
+Quad[] probabilities = cnn.Propagate(image);       // 784 values
+Quad loss = cnn.Backpropagate(oneHotTarget);       // trains on that image
+```
+
+- **Convolution layers** take a number of filters, a kernel size (`KernelSize`, or `KernelHeight` and `KernelWidth`),
+  a stride, zero padding (smaller than the kernel) and an activation.
+- **Pooling layers** take the max or the average over `Size` × `Size` windows, with a stride that defaults to `Size`.
+- **Dense layers** flatten their input and may only be followed by other dense layers.
+- **Batch normalization layers** normalize every channel and apply an activation. While `cnn.Training` is true
+  (the default) they use the statistics of the current image and update running averages; set it to false for
+  inference, which then uses the running averages, as an ONNX export does.
+- **Residual blocks** are the basic blocks of ResNet-18/34: two 3×3 convolutions with batch normalization, added to
+  the input (through a 1×1 convolution when the stride or the channels change).
+- **Global average pooling** averages every channel; convolutions can be built without bias (`UseBias = false`)
+  and pooling can be padded (`Padding`).
+
+ResNet-18, as in torchvision, with exactly its 11,689,512 parameters:
+
+```csharp
+var resNet18 = new ConvolutionalNetworkSettings
+{
+    InputChannels = 3, InputHeight = 224, InputWidth = 224, OutputDimension = 1000, OutputApplySoftMax = true,
+    Layers =
+    {
+        new ConvolutionLayerSettings { Filters = 64, KernelSize = 7, Stride = 2, Padding = 3, UseBias = false, ActivationType = ActivationTypes.Identity },
+        new BatchNormalizationLayerSettings { ActivationType = ActivationTypes.RELU },
+        new PoolingLayerSettings { Type = PoolingType.Max, Size = 3, Stride = 2, Padding = 1 },
+        new ResidualBlockSettings { Filters = 64 },  new ResidualBlockSettings { Filters = 64 },
+        new ResidualBlockSettings { Filters = 128, Stride = 2 }, new ResidualBlockSettings { Filters = 128 },
+        new ResidualBlockSettings { Filters = 256, Stride = 2 }, new ResidualBlockSettings { Filters = 256 },
+        new ResidualBlockSettings { Filters = 512, Stride = 2 }, new ResidualBlockSettings { Filters = 512 },
+        new GlobalAveragePoolingLayerSettings()
+    }
+};
+```
+
+Networks are trained one image at a time, so batch normalization sees a batch of one: it normalizes over the
+positions of each channel. A full-size ResNet-18 forward pass takes several seconds on a CPU; the implementation
+favours clarity over speed.
+
+`Seed` (on `ConvolutionalNetworkSettings`, `TransformerSettings` and `NetworkSettings`) makes the initial weights
+reproducible.
+
+Every weight and bias array has an optimizer of `OptimizerType`, as in the transformer. Convolutional networks can be
+saved and loaded like the other networks (`Save`, `ANNetwork.Load`, `NetworkSerializer`) and exported to ONNX
+(`OnnxExporter`), where they become `Conv`, `MaxPool` / `AveragePool`, `Flatten`, `MatMul` and `Softmax` operators.
+
+### 1-D convolution in layered networks
+
+Hidden layers of `NetworkFactory.BuildFFN` can also be convolutional or deconvolutional (transposed convolution).
+They treat the neurons of the previous layer, without its bias neuron, as a 1-D signal, and every filter shares its
+kernel weights across all positions:
+
+```csharp
+var hidden = new RecurrentLayerSettings
+{
+    LayersCount = 1,
+    CellType = NeuronType.Normal,
+    PrevLayerConnectionType = LayerConnectionType.Convolutional,   // or Deconvolutional
+    KernelSize = 3,
+    Stride = 1,
+    Padding = 1,               // smaller than the kernel
+    FiltersCount = 4,          // the neurons count follows from these settings
+    ActivationType = ActivationTypes.RELU
+};
+```
+
+A bias neuron in the previous layer feeds every filter through one shared bias weight. Shared weights add up the
+gradients of all their positions, so they usually need a smaller learning rate than plain weights.
+
+## Free-form graphs (NEAT)
+
+`NetworkFactory.BuildGraph` builds a feed-forward network with any acyclic topology, such as the
+phenotype of a NEAT genome. Node ids become neuron ids, connection ids let you read the weights back after
+training. Disabled connections and neurons that are not on a path from an input to an output are left out.
+
+```csharp
+IGraphNetwork network = NetworkFactory.BuildGraph(new GraphNetworkSettings
+{
+    Nodes = { new GraphNode(0, NodeType.INPUT), new GraphNode(1, NodeType.BIAS),
+              new GraphNode(2, NodeType.HIDDEN), new GraphNode(3, NodeType.OUTPUT) },
+    Connections = { new GraphConnection(0, 0, 2, 1.5f), new GraphConnection(1, 2, 3, -2f),
+                    new GraphConnection(2, 0, 3, 0.5f), new GraphConnection(3, 1, 3, 0.1f) },
+    HiddenActivationType = ActivationTypes.Sigmoid,
+    OutputActivationType = ActivationTypes.Sigmoid
+});
+
+Quad[] output = network.Propagate(0.7f);
+IReadOnlyDictionary<uint, Quad> weights = network.ConnectionWeights;
+```
+
+## Saving and loading
+
+Networks from `NetworkFactory.BuildFFN` and `NetworkFactory.BuildGraph` are saved as JSON (`.ann` files)
+and loaded back with the same topology, weights, activations, optimizer types, learning rates, loss,
+normalization and soft-max settings. Optimizer internal state (such as Adam moments) is not saved.
+
+```csharp
+network.Save(@"C:\models", "my-network");                    // writes C:\models\my-network.ann
+INetwork loaded = ANNetwork.Load(@"C:\models\my-network.ann");
+
+// or with streams / a known network type
+NetworkSerializer.Save(network, stream);
+IGraphNetwork graph = NetworkSerializer.Load<IGraphNetwork>(stream);
+```
+
+## ONNX export
+
+`OnnxExporter` writes networks from `BuildFFN` and `BuildGraph` (without recurrent connections) as
+ONNX models (opset 13) that compute the same values as `Propagate`, including input normalization and
+the output soft-max. Run them with ONNX Runtime or any other ONNX tool, from any language. ONNX keeps
+only the inference graph; use `NetworkSerializer` to save a network you want to keep training.
+
+```csharp
+OnnxExporter.Export(network, @"C:\models\my-network.onnx");    // input "input" [batch, inputs], output "output" [batch, outputs]
+OnnxExporter.Export(network, path, new OnnxExportOptions { InputName = "features", OutputName = "scores" });
+```
+
+```python
+import onnxruntime as ort, numpy as np
+session = ort.InferenceSession("my-network.onnx")
+outputs = session.run(None, {"input": np.array([[0.5, -1.0]], dtype=np.float32)})[0]
+```
+
 ## Transformer
 
 `NetworkFactory.BuildTransformer` builds an encoder-only transformer that maps a
 sequence of vectors to a sequence of vectors of the same length. It follows the
-same conventions as the other networks: every trainable value owns an optimizer
+same conventions as the other networks: every weight array has an optimizer
 from `OptimizerTypes`, and `Backpropagate` updates the weights immediately.
 
 ```csharp
@@ -98,6 +445,64 @@ INetwork network = NetworkFactory.BuildFFN(new NetworkSettings
 Quad[] output = network.Propagate(0, 1);
 Quad loss = network.Backpropagate(1);
 ```
+
+### Matrix networks
+
+`NetworkFactory.BuildMatrixFFN` takes the same settings and builds the same network with one weight matrix per
+layer instead of neuron and synapse objects. With the same `Seed` it starts from the same weights and trains
+bit-identically, so it is a drop-in replacement whenever the hidden layers are fully connected layers of normal
+neurons. `NetworkFactory.ToMatrix` converts an existing network; the state of optimizers such as Adam starts afresh.
+Matrix networks save, load, export to ONNX and compact like the neuron network.
+
+```csharp
+IMatrixNetwork network = NetworkFactory.BuildMatrixFFN(settings, hiddenLayerSettings);
+foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.01f;
+```
+
+| 784-256-256-10 | Neuron network | Matrix network |
+|---|---|---|
+| Memory, plain gradient descent | 18.8 MB (70 B per weight) | 1.1 MB (4 B per weight) |
+| Memory, Adam | 33.7 MB (125 B per weight) | 3.2 MB (12 B per weight) |
+| One training step, Adam | 57 ms | 3.9 ms |
+| One propagation | 22 ms | 0.4 ms |
+
+## Networks of networks
+
+`NetworkFactory.BuildNested` builds a network whose nodes are whole networks: every node takes a vector, gives a
+vector, and passes it to the nodes that read it. A node joins the vectors it receives one after the other
+(`NodeCombination.Concatenate`) or adds them up (`NodeCombination.Sum`). Node 0 (`NestedNetworkSettings.InputNode`)
+is the input of the whole network, and the output is the outputs of the listed nodes one after the other.
+
+```csharp
+IMatrixNetwork encoder = NetworkFactory.BuildMatrixFFN(encoderSettings, hidden);          // 16 -> 24
+IVectorNetwork attention = NetworkFactory.AsVectorNetwork(transformer, sequenceLength: 4);  // 4 tokens of 6 -> 4 tokens of 6
+INestedNetwork inner = NetworkFactory.BuildNested(innerSettings);                           // a network of networks itself
+
+INestedNetwork network = NetworkFactory.BuildNested(new NestedNetworkSettings
+{
+    InputSize = 16,
+    Nodes =
+    {
+        new NestedNode(1, encoder, NestedNetworkSettings.InputNode),
+        new NestedNode(2, attention, 1),
+        new NestedNode(3, inner, 2, NestedNetworkSettings.InputNode),                      // 24 + 16 values
+    },
+    Outputs = { 3 }
+});
+
+foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.01f;
+network.Propagate(input);
+network.Backpropagate(target);   // trains the networks of all nodes together
+```
+
+A node can hold any `IVectorNetwork`: matrix, neuron, graph, convolutional and nested networks are vector networks,
+and `AsVectorNetwork` turns a transformer into one for sequences of a fixed length, so nested networks nest to any
+depth. Backpropagation visits the nodes in reverse order, adds up the gradients from every node that reads a node,
+and hands them to `BackpropagateGradient` of the network inside, which trains it and returns the gradient of its
+inputs (through the normalization and soft-max of the inner network). Any class implementing `IVectorNetwork` can be
+a node too. Rules: the nodes must not form a cycle, every node needs its own network, and nodes that feed no output
+are left out. Nested networks save and load with `NetworkSerializer` when every node can be saved (transformers
+cannot yet); they cannot be compacted or exported to ONNX yet.
 
 ## Splitting a neuron network across processes
 
@@ -209,10 +614,10 @@ for (int t = 0; t < tokens.Length; t++)
 `IEmbeddingNetwork` interface. It learns one dense vector per token id with
 negative sampling, either as skip-gram (the center token predicts its context)
 or as continuous bag of words (the context predicts the center token). Like the
-other networks every weight owns an optimizer and `Backpropagate` updates the
+other networks every embedding row has an optimizer and `Backpropagate` updates the
 weights immediately, so the learning rate is set the same way. The input and
-output matrices hold `2 * VocabularySize * EmbeddingDimension` weights, each
-with its own optimizer, so size the vocabulary accordingly.
+output matrices hold `2 * VocabularySize * EmbeddingDimension` weights, whose
+optimizer state is kept in arrays, so size the vocabulary accordingly.
 
 ```csharp
 IEmbeddingNetwork word2vec = NetworkFactory.BuildWord2Vec(new Word2VecSettings

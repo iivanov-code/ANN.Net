@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CODE_OF_CONDUCT.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="../RPC.Library/RPC.Library/RPC.Library.csproj" />
+  <Project Path="ANN.Net.Abstractions/ANN.Net.Abstractions.csproj" />
+  <Project Path="ANN.Net.Remote.Abstactions/ANN.Net.Remote.Abstactions.csproj" />
+  <Project Path="ANN.Net.Remote/ANN.Net.Remote.csproj" />
+  <Project Path="ANN.Net.Tests/ANN.Net.Tests.csproj" />
+  <Project Path="NeuralNetwork/ANN.Net.csproj" />
+</Solution>

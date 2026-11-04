@@ -12,18 +12,14 @@ namespace ANN.Net.Utils
 {
     public static class NetworkUtils
     {
-        private static object idPadlock = new object();
-        private static uint Id = 0;
+        private static int lastId = -1;
 
+        /// <summary>
+        /// A new id, unique also when networks are built on several threads at once
+        /// </summary>
         public static uint NewID()
         {
-            uint id = Id;
-            lock (idPadlock)
-            {
-                Id++;
-            }
-
-            return id;
+            return unchecked((uint)System.Threading.Interlocked.Increment(ref lastId));
         }
 
         public static Quad RandomWeight()
@@ -60,7 +56,43 @@ namespace ANN.Net.Utils
         /// <see cref="Random.Shared"/> is safe to use from several threads at once, which a
         /// hand-made <see cref="Random"/> is not: concurrent calls can leave it returning zeros
         /// </summary>
-        internal static Random Rand => Random.Shared;
+        internal static Random Rand => scopedRandom.Value ?? Random.Shared;
+
+        private static readonly System.Threading.AsyncLocal<Random> scopedRandom = new System.Threading.AsyncLocal<Random>();
+
+        /// <summary>
+        /// Draws every random number of the current flow from a source seeded with <paramref name="seed"/> until the
+        /// returned scope is disposed, so a network built inside the scope gets reproducible initial weights. Does
+        /// nothing for a null seed. The scope follows the async flow, so networks built in parallel do not interfere
+        /// </summary>
+        internal static IDisposable SeedRandom(int? seed)
+        {
+            return seed.HasValue ? new RandomScope(new Random(seed.Value)) : RandomScope.None;
+        }
+
+        private sealed class RandomScope : IDisposable
+        {
+            public static readonly RandomScope None = new RandomScope();
+
+            private readonly Random previous;
+            private readonly bool active;
+
+            private RandomScope()
+            {
+            }
+
+            public RandomScope(Random random)
+            {
+                previous = scopedRandom.Value;
+                scopedRandom.Value = random;
+                active = true;
+            }
+
+            public void Dispose()
+            {
+                if (active) scopedRandom.Value = previous;
+            }
+        }
 
         internal static bool RandomBoolean()
         {
@@ -98,6 +130,33 @@ namespace ANN.Net.Utils
 
                 case IdentityActivation _:
                     return ActivationTypes.Identity;
+
+                case LeakyRELUActivation _:
+                    return ActivationTypes.LeakyRELU;
+
+                case BinaryStepActivation _:
+                    return ActivationTypes.BinaryRELU;
+
+                case GaussianActivation _:
+                    return ActivationTypes.Gaussian;
+
+                case SinusoidActivation _:
+                    return ActivationTypes.Sinusoid;
+
+                case SoftSignActivation _:
+                    return ActivationTypes.SoftSign;
+
+                case SQNLActivation _:
+                    return ActivationTypes.SQNL;
+
+                case ISRUActivation _:
+                    return ActivationTypes.ISRU;
+
+                case GELUActivation _:
+                    return ActivationTypes.GELU;
+
+                case SwishActivation _:
+                    return ActivationTypes.SWISH;
 
                 default:
                     throw new ArgumentException("Invalid argument", nameof(neuron.Function));
@@ -155,6 +214,27 @@ namespace ANN.Net.Utils
                 case ActivationTypes.Identity:
                     return IdentityActivation.Instance;
 
+                case ActivationTypes.Gaussian:
+                    return GaussianActivation.Instance;
+
+                case ActivationTypes.Sinusoid:
+                    return SinusoidActivation.Instance;
+
+                case ActivationTypes.SoftSign:
+                    return SoftSignActivation.Instance;
+
+                case ActivationTypes.SQNL:
+                    return SQNLActivation.Instance;
+
+                case ActivationTypes.ISRU:
+                    return ISRUActivation.Instance;
+
+                case ActivationTypes.GELU:
+                    return GELUActivation.Instance;
+
+                case ActivationTypes.SWISH:
+                    return SwishActivation.Instance;
+
                 default:
                     throw new ArgumentException("Invalid argument", nameof(type));
             }
@@ -175,6 +255,9 @@ namespace ANN.Net.Utils
 
                 case OptimizerTypes.Nadam:
                     return new Nadam();
+
+                case OptimizerTypes.AmsGrad:
+                    return new AmsGrad();
 
                 case OptimizerTypes.RMSprop:
                     return new RMSprop();
@@ -202,6 +285,9 @@ namespace ANN.Net.Utils
 
                 case Nadam _:
                     return OptimizerTypes.Nadam;
+
+                case AmsGrad _:
+                    return OptimizerTypes.AmsGrad;
 
                 case AdaMax _:
                     return OptimizerTypes.AdaMax;

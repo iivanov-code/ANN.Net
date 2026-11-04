@@ -5,10 +5,15 @@ namespace ANN.Net.Abstractions.Interfaces.Synapses
 {
     public interface ISynapse
     {
-#if DEBUG
+        /// <summary>
+        /// Neuron the synapse takes its value from
+        /// </summary>
         INeuron Input { get; }
+
+        /// <summary>
+        /// Neuron the synapse delivers its value to
+        /// </summary>
         INeuron Output { get; }
-#endif
 
         void Propagate(NeuronPropagateEventArgs value);
 

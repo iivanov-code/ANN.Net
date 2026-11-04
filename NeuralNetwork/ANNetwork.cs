@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization.Formatters;
-using System.Runtime.Serialization.Formatters.Binary;
 
 using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Enums;
@@ -16,14 +14,22 @@ namespace ANN.Net
     [Serializable]
     public abstract class ANNetwork
     {
-        public const string FILE_EXTENSION = "ann";
+        public const string FILE_EXTENSION = NetworkSerializer.FileExtension;
 
+        /// <summary>
+        /// Loads a network saved with <see cref="Save(string, string)"/> or <see cref="NetworkSerializer"/>
+        /// </summary>
         public static INetwork Load(string fullFilePath)
         {
-            using (FileStream fileStream = new FileStream(fullFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                return Formatter.Deserialize(fileStream) as INetwork;
-            }
+            return NetworkSerializer.Load(fullFilePath);
+        }
+
+        /// <summary>
+        /// Loads a network saved with <see cref="Save(string, string)"/> or <see cref="NetworkSerializer"/>
+        /// </summary>
+        public static INetwork Load(Stream stream)
+        {
+            return NetworkSerializer.Load(stream);
         }
 
         public static INetwork BuildNetwork(IEnumerable<IInputNeuron> inputNeurons, IEnumerable<IHiddenNeuron> hiddenNeurons, IEnumerable<IOutputNeuron> outputNeurons)
@@ -59,31 +65,20 @@ namespace ANN.Net
             return network;
         }
 
+        /// <summary>
+        /// Saves the network as JSON to <paramref name="fullDirPath"/>/<paramref name="fileName"/>.ann
+        /// </summary>
         public void Save(string fullDirPath, string fileName)
         {
-            string fullFilePath = Path.Combine(fullDirPath, $"{fileName}.{FILE_EXTENSION}");
-            using FileStream fileStream = new FileStream(fullFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read);
-            Formatter.Serialize(fileStream, this);
+            NetworkSerializer.Save((INetwork)this, Path.Combine(fullDirPath, $"{fileName}.{FILE_EXTENSION}"));
         }
 
-#pragma warning disable SYSLIB0011 // Type or member is obsolete
-        private static BinaryFormatter Formatter
+        /// <summary>
+        /// Saves the network as JSON to a stream
+        /// </summary>
+        public void Save(Stream stream)
         {
-            get
-            {
-                BinaryFormatter formatter = new BinaryFormatter();
-#pragma warning disable SYSLIB0050 // Type or member is obsolete
-                formatter.TypeFormat = FormatterTypeStyle.XsdString;
-#pragma warning restore SYSLIB0050 // Type or member is obsolete
-#pragma warning disable SYSLIB0050 // Type or member is obsolete
-                formatter.AssemblyFormat = FormatterAssemblyStyle.Simple;
-#pragma warning restore SYSLIB0050 // Type or member is obsolete
-#pragma warning disable SYSLIB0050 // Type or member is obsolete
-                formatter.FilterLevel = TypeFilterLevel.Full;
-#pragma warning restore SYSLIB0050 // Type or member is obsolete
-                return formatter;
-            }
+            NetworkSerializer.Save((INetwork)this, stream);
         }
-#pragma warning restore SYSLIB0011 // Type or member is obsolete
     }
 }

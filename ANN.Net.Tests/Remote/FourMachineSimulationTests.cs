@@ -47,6 +47,9 @@ namespace ANN.Net.Tests.Remote
 
         private static async Task<Simulation> StartAsync()
         {
+            // seeded initial weights for every machine: an unlucky random start made the training test fail now and then
+            using IDisposable seed = Utils.NetworkUtils.SeedRandom(11);
+
             // the whole network, described identically on every machine
             NetworkSettings whole = SplitHelpers.Whole(3, 2, ActivationTypes.Identity, inputBias: true);
             RecurrentLayerSettings[] hidden =

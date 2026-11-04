@@ -32,13 +32,10 @@ namespace ANN.Net.Connections
                 this.UpdateWeight(delta * this.Input.Value);
             }
 
-            if (BackpropagateConnection != null)
+            this.Input?.Backpropagate(new BackpropagateEventArgs(delta, weighted, null)
             {
-                BackpropagateConnection(new BackpropagateEventArgs(delta, weighted, null)
-                {
-                    ShouldActivate = errorSignal.ShouldActivate
-                });
-            }
+                ShouldActivate = errorSignal.ShouldActivate
+            });
         }
 
         /// <summary>
@@ -46,7 +43,7 @@ namespace ANN.Net.Connections
         /// </summary>
         public virtual void Propagate(NeuronPropagateEventArgs value)
         {
-            PropagateConnection(new NeuronPropagateEventArgs(value.Value * Weight)
+            this.Output.Propagate(new NeuronPropagateEventArgs(value.Value * Weight)
             {
                 ShouldActivate = value.ShouldActivate,
                 ClearValue = value.ClearValue

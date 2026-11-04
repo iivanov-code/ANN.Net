@@ -40,6 +40,8 @@ namespace ANN.Net.Tests.Remote
 
         internal static Chain Build(NetworkSettings whole, RecurrentLayerSettings[] hidden, int firstLayer, int lastLayer, int parts)
         {
+            // seeded initial weights for every machine: an unlucky random start made the training test fail now and then
+            using IDisposable seed = Utils.NetworkUtils.SeedRandom(11);
             Chain chain = new Chain();
             chain.Tail = (Network)RemoteNetworkFactory.BuildTail(whole, hidden, lastLayer);
 

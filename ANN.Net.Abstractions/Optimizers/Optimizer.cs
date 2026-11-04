@@ -8,6 +8,11 @@
             this.beta2 = beta2;
         }
 
+        /// <summary>
+        /// Keeps adaptive optimizers from dividing by zero when the gradients so far were zero
+        /// </summary>
+        protected const float Epsilon = 1e-8f;
+
         protected Quad beta1, beta2;
         protected Quad m = 0;
         protected Quad v = 0;

@@ -11,8 +11,8 @@ namespace ANN.Net.Neurons
     [Serializable]
     internal class BiasNeuron : Neuron, IInputNeuron, IHiddenNeuron
     {
-        public BiasNeuron(ActivationTypes activationType)
-             : base(false, true, activationType)
+        public BiasNeuron(ActivationTypes activationType, uint? id = null)
+             : base(false, true, activationType, id)
         {
             this.Value = 1;
             this.PreActivation = 1;

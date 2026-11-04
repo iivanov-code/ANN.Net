@@ -4,6 +4,7 @@ using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Utils;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Transformers
 {
@@ -29,7 +30,24 @@ namespace ANN.Net.Transformers
             this.expansion = new LinearProjection(modelDimension, hiddenDimension, optimizerType, initializationType, optimizers);
             this.contraction = new LinearProjection(hiddenDimension, modelDimension, optimizerType, initializationType, optimizers);
             this.activation = NetworkUtils.GetActivation(activationType);
+            this.ActivationType = activationType;
         }
+
+        private FeedForwardNetwork(FeedForwardNetwork master, ReplicaContext context)
+        {
+            this.expansion = master.expansion.Replicate(context);
+            this.contraction = master.contraction.Replicate(context);
+            this.activation = NetworkUtils.GetActivation(master.ActivationType);
+            this.ActivationType = master.ActivationType;
+        }
+
+        public IFeedForwardNetwork Replicate(ReplicaContext context) => new FeedForwardNetwork(this, context);
+
+        internal LinearProjection Expansion => this.expansion;
+
+        internal LinearProjection Contraction => this.contraction;
+
+        internal ActivationTypes ActivationType { get; }
 
         public Quad[][] Propagate(Quad[][] inputs)
         {

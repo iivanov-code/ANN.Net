@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Transformers
 {
@@ -50,9 +51,35 @@ namespace ANN.Net.Transformers
             this.outputProjection = new LinearProjection(modelDimension, modelDimension, optimizerType, initializationType, optimizers);
         }
 
+        private MultiHeadAttention(MultiHeadAttention master, ReplicaContext context)
+        {
+            this.headsCount = master.headsCount;
+            this.headDimension = master.headDimension;
+            this.useCausalMask = master.useCausalMask;
+            this.scale = master.scale;
+            this.queryProjection = master.queryProjection.Replicate(context);
+            this.keyProjection = master.keyProjection.Replicate(context);
+            this.valueProjection = master.valueProjection.Replicate(context);
+            this.outputProjection = master.outputProjection.Replicate(context);
+        }
+
+        public MultiHeadAttention Replicate(ReplicaContext context) => new MultiHeadAttention(this, context);
+
         public int ModelDimension => this.headsCount * this.headDimension;
 
         public int HeadsCount => this.headsCount;
+
+        internal bool UseCausalMask => this.useCausalMask;
+
+        internal Quad Scale => this.scale;
+
+        internal LinearProjection QueryProjection => this.queryProjection;
+
+        internal LinearProjection KeyProjection => this.keyProjection;
+
+        internal LinearProjection ValueProjection => this.valueProjection;
+
+        internal LinearProjection OutputProjection => this.outputProjection;
 
         /// <summary>
         /// Attention weights of the last propagation indexed as [head][query position][key position]

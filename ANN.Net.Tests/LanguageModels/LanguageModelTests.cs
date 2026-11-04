@@ -30,7 +30,11 @@ namespace ANN.Net.Tests.LanguageModels
                 UseCausalMask = true,
                 OutputApplySoftMax = applySoftMax,
                 OptimizerType = OptimizerTypes.Normal,
-                InitializationType = WeightInitType.Xavier
+                InitializationType = WeightInitType.Xavier,
+
+                // seeded initial weights: an unlucky random start can leave training on a plateau, which made
+                // the learning tests fail now and then
+                Seed = 1
             };
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Transformers
 {
@@ -13,12 +14,12 @@ namespace ANN.Net.Transformers
     [Serializable]
     internal class LayerNormalization
     {
-        private const float EPSILON = 1e-5f;
+        internal const float EPSILON = 1e-5f;
 
         private readonly Quad[] gains;
         private readonly Quad[] offsets;
-        private readonly IOptimizer[] gainOptimizers;
-        private readonly IOptimizer[] offsetOptimizers;
+        private readonly ArrayOptimizer gainOptimizer;
+        private readonly ArrayOptimizer offsetOptimizer;
         private Quad[][] lastNormalized;
         private Quad[] lastInverseDeviations;
 
@@ -29,17 +30,25 @@ namespace ANN.Net.Transformers
 
             this.gains = new Quad[dimension];
             this.offsets = new Quad[dimension];
-            this.gainOptimizers = new IOptimizer[dimension];
-            this.offsetOptimizers = new IOptimizer[dimension];
+            this.gainOptimizer = ArrayOptimizer.Create(optimizerType, dimension, optimizers);
+            this.offsetOptimizer = ArrayOptimizer.Create(optimizerType, dimension, optimizers);
 
             for (int i = 0; i < dimension; i++)
             {
                 this.gains[i] = 1;
                 this.offsets[i] = 0;
-                this.gainOptimizers[i] = TransformerUtils.CreateOptimizer(optimizerType, optimizers);
-                this.offsetOptimizers[i] = TransformerUtils.CreateOptimizer(optimizerType, optimizers);
             }
         }
+
+        private LayerNormalization(LayerNormalization master, ReplicaContext context)
+        {
+            this.gains = master.gains;
+            this.offsets = master.offsets;
+            this.gainOptimizer = context.Link(master.gainOptimizer, master.gains);
+            this.offsetOptimizer = context.Link(master.offsetOptimizer, master.offsets);
+        }
+
+        public LayerNormalization Replicate(ReplicaContext context) => new LayerNormalization(this, context);
 
         public int Dimension => this.gains.Length;
 
@@ -139,11 +148,8 @@ namespace ANN.Net.Transformers
                 }
             }
 
-            for (int i = 0; i < dimension; i++)
-            {
-                this.gains[i] = this.gainOptimizers[i].Calculate(gainGradients[i], this.gains[i]);
-                this.offsets[i] = this.offsetOptimizers[i].Calculate(offsetGradients[i], this.offsets[i]);
-            }
+            this.gainOptimizer.Update(this.gains, gainGradients);
+            this.offsetOptimizer.Update(this.offsets, offsetGradients);
 
             return inputGradients;
         }

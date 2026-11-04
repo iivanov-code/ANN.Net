@@ -18,6 +18,15 @@ namespace ANN.Net.ActivationFunctions
 
         private Quad alpha;
 
+        /// <summary>
+        /// Coefficient of the cubic term in the usual tanh approximation of GELU
+        /// </summary>
+        public const float DefaultAlpha = 0.044715f;
+
+        public GELUActivation()
+            : this(DefaultAlpha)
+        { }
+
         public GELUActivation(Quad alpha)
         {
             this.alpha = alpha;
