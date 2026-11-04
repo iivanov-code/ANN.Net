@@ -1,5 +1,6 @@
 ﻿using System;
 using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Settings;
 using ANN.Net.Compact;
 using ANN.Net.Convolutional;
 using ANN.Net.Serialization;
@@ -26,6 +27,17 @@ namespace ANN.Net
                 return new CompactConvolutionalNetwork(convolutional);
 
             return new CompactGraphNetwork(GraphPlan.Create(NetworkSerializer.ToDocument(network)));
+        }
+
+        /// <summary>
+        /// Inference-only network of a graph, computing what <c>NetworkFactory.BuildGraph(settings)</c> would compute
+        /// but without building the neurons and synapses first: for networks that are only evaluated, such as the
+        /// phenotypes of NEAT genomes, this is several times faster and smaller. The settings are validated and pruned
+        /// as <c>BuildGraph</c> does
+        /// </summary>
+        public static ICompactNetwork CompactGraph(GraphNetworkSettings settings)
+        {
+            return new CompactGraphNetwork(GraphPlan.Create(GraphNetwork.ToPlanDocument(settings)));
         }
     }
 }

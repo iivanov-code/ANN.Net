@@ -107,6 +107,75 @@ namespace ANN.Net.Tests.Compact
             AssertSameOutputs(network, NetworkCompactor.Compact(network), Samples(2, 10));
         }
 
+        /// <summary>
+        /// Random acyclic graph with dead branches, disabled connections, unconnected outputs and bias nodes
+        /// </summary>
+        private static GraphNetworkSettings RandomGraph(int seed)
+        {
+            var random = new Random(seed);
+            ActivationTypes[] activations = ActivationFunctionTests.Buildable;
+            var settings = new GraphNetworkSettings
+            {
+                OutputApplySoftMax = seed % 3 == 0,
+                OutputActivationType = ActivationTypes.Sigmoid,
+                InputActivationType = seed % 2 == 0 ? ActivationTypes.Identity : ActivationTypes.HyperbolicTangens
+            };
+
+            var order = new List<uint>();
+            for (uint i = 0; i < 3; i++) { settings.Nodes.Add(new GraphNode(i, NodeType.INPUT)); order.Add(i); }
+            settings.Nodes.Add(new GraphNode(3, NodeType.BIAS)); order.Add(3);
+            for (uint i = 0; i < 12; i++)
+            {
+                settings.Nodes.Add(new GraphNode(10 + i, NodeType.HIDDEN, random.Next(3) == 0 ? null : activations[random.Next(activations.Length)]));
+                order.Add(10 + i);
+            }
+
+            for (uint i = 0; i < 3; i++) { settings.Nodes.Add(new GraphNode(50 + i, NodeType.OUTPUT)); order.Add(50 + i); }
+
+            // connections only go forward in this order, so the graph is acyclic; hidden nodes may end up dead
+            uint id = 100;
+            for (int c = 0; c < 40; c++)
+            {
+                int from = random.Next(order.Count - 3);
+                int to = random.Next(Math.Max(from + 1, 4), order.Count);
+                settings.Connections.Add(new GraphConnection(id++, order[from], order[to], (float)((random.NextDouble() * 4) - 2), random.Next(8) != 0));
+            }
+
+            return settings;
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(5)]
+        [InlineData(6)]
+        public void GraphSettings_CompactWithoutBuildingTheNetwork(int seed)
+        {
+            GraphNetworkSettings settings = RandomGraph(seed);
+            IGraphNetwork network = NetworkFactory.BuildGraph(settings);
+            ICompactNetwork fromNetwork = NetworkCompactor.Compact(network);
+            ICompactNetwork fromSettings = NetworkCompactor.CompactGraph(settings);
+
+            Assert.Equal(fromNetwork.ParameterCount, fromSettings.ParameterCount);
+            Assert.Equal(fromNetwork.OutputCount, fromSettings.OutputCount);
+            AssertSameOutputs(network, fromSettings, Samples(3, 10, seed));
+        }
+
+        [Fact]
+        public void GraphSettings_AreValidatedLikeBuildGraph()
+        {
+            var cycle = new GraphNetworkSettings
+            {
+                Nodes = { new GraphNode(0, NodeType.INPUT), new GraphNode(1, NodeType.HIDDEN), new GraphNode(2, NodeType.HIDDEN), new GraphNode(3, NodeType.OUTPUT) },
+                Connections = { new GraphConnection(0, 0, 1, 1), new GraphConnection(1, 1, 2, 1), new GraphConnection(2, 2, 1, 1), new GraphConnection(3, 2, 3, 1) }
+            };
+
+            Assert.Throws<ArgumentException>(() => NetworkCompactor.CompactGraph(cycle));
+            Assert.Throws<ArgumentNullException>(() => NetworkCompactor.CompactGraph(null));
+        }
+
         [Theory]
         [InlineData(LayerConnectionType.Convolutional)]
         [InlineData(LayerConnectionType.Deconvolutional)]

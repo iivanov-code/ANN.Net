@@ -39,7 +39,9 @@ network = null;                                                // the original c
 Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
 batch normalizations that follow a convolution are folded into it. Convolutional networks compute as with
 `Training = false`. A compact network is a snapshot: training the original later does not change it. It keeps no
-state between calls, so one copy can serve several threads at once. Recurrent networks and transformers cannot be
+state between calls, so one copy can serve several threads at once. `NetworkCompactor.CompactGraph(settings)`
+compiles `GraphNetworkSettings` straight into a compact network without building the graph network first, which is
+how NEAT evaluates its genomes. Recurrent networks and transformers cannot be
 compacted yet.
 
 ## Optimizers

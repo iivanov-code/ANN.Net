@@ -10,6 +10,7 @@ using ANN.Net.Abstractions.Settings;
 using ANN.Net.Connections;
 using ANN.Net.IdentityGenerators;
 using ANN.Net.Neurons;
+using ANN.Net.Serialization;
 using ANN.Net.Utils;
 
 namespace ANN.Net
@@ -63,7 +64,12 @@ namespace ANN.Net
 
         public Quad Backpropagate(params Quad[] targets) => network.Backpropagate(targets);
 
-        internal static GraphNetwork Build(GraphNetworkSettings settings)
+        /// <summary>
+        /// Nodes and connections of a valid graph after pruning, in the order of the settings
+        /// </summary>
+        private sealed record Topology(List<GraphNode> Inputs, List<GraphNode> Biases, List<GraphNode> Hidden, List<GraphNode> Outputs, List<GraphConnection> Connections);
+
+        private static Topology Prepare(GraphNetworkSettings settings)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (settings.Nodes == null) throw new ArgumentException("Nodes are required", nameof(settings));
@@ -86,6 +92,70 @@ namespace ANN.Net
             List<GraphConnection> connections = ValidateConnections(settings.Connections, nodes);
             EnsureAcyclic(nodes.Keys, connections);
             connections = Prune(nodes, connections);
+
+            // only hidden nodes that still have a connection after pruning lie on an input-output path
+            var usedNodes = new HashSet<uint>(connections.SelectMany(x => new[] { x.FromNode, x.ToNode }));
+            List<GraphNode> hidden = settings.Nodes.Where(x => x.Type == NodeType.HIDDEN && usedNodes.Contains(x.Id)).ToList();
+
+            return new Topology(inputs, biases, hidden, outputs, connections);
+        }
+
+        /// <summary>
+        /// The document a built network would save, as far as <see cref="Compact.GraphPlan"/> needs it, without
+        /// building neurons and synapses first
+        /// </summary>
+        internal static NetworkDocument ToPlanDocument(GraphNetworkSettings settings)
+        {
+            Topology topology = Prepare(settings);
+            var document = new NetworkDocument { Kind = NetworkKind.Graph, LossType = settings.LossType, OutputApplySoftMax = settings.OutputApplySoftMax };
+            var indexes = new Dictionary<uint, int>();
+
+            List<int> Add(List<GraphNode> nodes, ActivationTypes defaultActivation, bool? applyActivation)
+            {
+                var layer = new List<int>(nodes.Count);
+                foreach (GraphNode node in nodes)
+                {
+                    indexes.Add(node.Id, document.Neurons.Count);
+                    layer.Add(document.Neurons.Count);
+                    document.Neurons.Add(new NeuronDocument
+                    {
+                        Id = node.Id,
+                        Type = node.Type,
+                        Activation = node.Type == NodeType.BIAS ? ActivationTypes.Identity : node.ActivationType ?? defaultActivation,
+                        ApplyActivation = applyActivation
+                    });
+                }
+
+                return layer;
+            }
+
+            document.InputLayer = Add(topology.Inputs, settings.InputActivationType, null);
+            document.InputLayer.AddRange(Add(topology.Biases, ActivationTypes.Identity, null));
+            document.HiddenLayers.Add(Add(topology.Hidden, settings.HiddenActivationType, null));
+            document.OutputLayer = Add(topology.Outputs, settings.OutputActivationType, !settings.OutputApplySoftMax);
+
+            foreach (GraphConnection connection in topology.Connections)
+            {
+                document.Synapses.Add(new SynapseDocument
+                {
+                    Id = connection.Id,
+                    From = indexes[connection.FromNode],
+                    To = indexes[connection.ToNode],
+                    Weight = connection.Weight,
+                    Optimizer = settings.OptimizerType
+                });
+            }
+
+            return document;
+        }
+
+        internal static GraphNetwork Build(GraphNetworkSettings settings)
+        {
+            Topology topology = Prepare(settings);
+            List<GraphNode> inputs = topology.Inputs;
+            List<GraphNode> biases = topology.Biases;
+            List<GraphNode> outputs = topology.Outputs;
+            List<GraphConnection> connections = topology.Connections;
 
             IUniqueIdentityGenerator ids = settings.IdentityGenerator ?? new IncrementalGenerator();
             var network = new Network(new NetworkSettings
@@ -115,11 +185,9 @@ namespace ANN.Net
                 inputLayer.Add(neuron);
             }
 
-            // only hidden nodes that still have a connection after pruning lie on an input-output path
-            var usedNodes = new HashSet<uint>(connections.SelectMany(x => new[] { x.FromNode, x.ToNode }));
             var hiddenLayer = new Layer<IHiddenNeuron>();
             var hiddenIds = new List<uint>();
-            foreach (GraphNode node in settings.Nodes.Where(x => x.Type == NodeType.HIDDEN && usedNodes.Contains(x.Id)))
+            foreach (GraphNode node in topology.Hidden)
             {
                 var neuron = new HiddenNeuron(node.ActivationType ?? settings.HiddenActivationType, node.Id);
                 neurons.Add(node.Id, neuron);
