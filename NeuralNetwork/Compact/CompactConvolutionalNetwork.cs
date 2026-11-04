@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using ANN.Net.Abstractions.Enums;
@@ -35,6 +36,88 @@ namespace ANN.Net.Compact
             OutputCount = network.OutputDimension;
             ParameterCount = operations.Sum(x => x.ParameterCount);
             SizeInBytes = operations.Sum(x => x.SizeInBytes);
+        }
+
+        private CompactConvolutionalNetwork(IOperation[] operations, bool softMax, int inputCount, int outputCount, WeightPrecision precision)
+        {
+            this.operations = operations;
+            this.softMax = softMax;
+            InputCount = inputCount;
+            OutputCount = outputCount;
+            Precision = precision;
+            ParameterCount = operations.Sum(x => x.ParameterCount);
+            SizeInBytes = operations.Sum(x => x.SizeInBytes);
+        }
+
+        internal void Write(BinaryWriter writer)
+        {
+            writer.Write(InputCount);
+            writer.Write(OutputCount);
+            writer.Write(softMax);
+            WriteOperations(writer, operations);
+        }
+
+        /// <summary>
+        /// Reads what <see cref="Write"/> wrote, checking that every operation fits the one before it
+        /// </summary>
+        internal static CompactConvolutionalNetwork Read(BinaryReader reader, WeightPrecision precision)
+        {
+            int inputCount = reader.ReadInt32(), outputCount = reader.ReadInt32();
+            bool softMax = reader.ReadBoolean();
+            CompactIO.Require(inputCount > 0 && outputCount > 0, "Invalid input or output size");
+
+            IOperation[] operations = ReadOperations(reader, precision, inputCount, 0);
+            CompactIO.Require(operations.Length > 0 && operations[^1].OutputSize == outputCount, "The operations do not end with the outputs");
+            return new CompactConvolutionalNetwork(operations, softMax, inputCount, outputCount, precision);
+        }
+
+        private static void WriteOperations(BinaryWriter writer, IReadOnlyList<IOperation> operations)
+        {
+            writer.Write(operations.Count);
+            foreach (IOperation operation in operations) operation.Write(writer);
+        }
+
+        private static IOperation[] ReadOperations(BinaryReader reader, WeightPrecision precision, int inputSize, int depth)
+        {
+            CompactIO.Require(depth < 16, "Residual blocks nested too deeply");
+            int count = reader.ReadInt32();
+            CompactIO.Require(count >= 0 && count <= 10_000, "Invalid number of operations");
+
+            var operations = new IOperation[count];
+            for (int i = 0; i < count; i++)
+            {
+                byte kind = reader.ReadByte();
+                operations[i] = kind switch
+                {
+                    1 => Convolution.Read(reader, precision),
+                    2 => ScaleShift.Read(reader),
+                    3 => Pooling.Read(reader),
+                    4 => GlobalAverage.Read(reader),
+                    5 => Residual.Read(reader, precision, inputSize, depth),
+                    6 => Dense.Read(reader, precision),
+                    _ => throw new InvalidDataException($"Unknown operation {kind}")
+                };
+
+                CompactIO.Require(operations[i].InputSize == inputSize, $"Operation {i} takes {operations[i].InputSize} values but gets {inputSize}");
+                inputSize = operations[i].OutputSize;
+            }
+
+            return operations;
+        }
+
+        private static Shape ReadShape(BinaryReader reader)
+        {
+            var shape = new Shape(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
+            CompactIO.Require(shape.Channels > 0 && shape.Height > 0 && shape.Width > 0 && (long)shape.Channels * shape.Height * shape.Width <= int.MaxValue,
+                              $"Invalid shape {shape}");
+            return shape;
+        }
+
+        private static void WriteShape(BinaryWriter writer, Shape shape)
+        {
+            writer.Write(shape.Channels);
+            writer.Write(shape.Height);
+            writer.Write(shape.Width);
         }
 
         public int InputCount { get; }
@@ -169,6 +252,15 @@ namespace ANN.Net.Compact
 
         private interface IOperation
         {
+            int InputSize { get; }
+
+            int OutputSize { get; }
+
+            /// <summary>
+            /// Writes the kind of the operation and its values
+            /// </summary>
+            void Write(BinaryWriter writer);
+
             /// <summary>
             /// Weights that are not stored yet
             /// </summary>
@@ -213,6 +305,55 @@ namespace ANN.Net.Compact
             public Convolution(ConvolutionLayer layer)
                 : this(layer, Floats(layer.Weights), Floats(layer.Biases), layer.ActivationType)
             {
+            }
+
+            private Convolution(Shape input, Shape output, int kernelHeight, int kernelWidth, int stride, int padding, float[] bias,
+                                ActivationTypes activationType, WeightMatrix weights)
+            {
+                this.input = input;
+                this.output = output;
+                this.kernelHeight = kernelHeight;
+                this.kernelWidth = kernelWidth;
+                this.stride = stride;
+                this.padding = padding;
+                this.bias = bias;
+                activation = Function(activationType);
+                this.weights = weights;
+            }
+
+            public int InputSize => input.Size;
+
+            public int OutputSize => output.Size;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)1);
+                WriteShape(writer, input);
+                WriteShape(writer, output);
+                writer.Write(kernelHeight);
+                writer.Write(kernelWidth);
+                writer.Write(stride);
+                writer.Write(padding);
+                writer.WriteArray(bias);
+                writer.Write((int)activation.Type);
+                weights.Write(writer);
+            }
+
+            public static Convolution Read(BinaryReader reader, WeightPrecision precision)
+            {
+                Shape input = ReadShape(reader), output = ReadShape(reader);
+                int kernelHeight = reader.ReadInt32(), kernelWidth = reader.ReadInt32(), stride = reader.ReadInt32(), padding = reader.ReadInt32();
+                float[] bias = reader.ReadArray<float>(true);
+                ActivationTypes activation = reader.ReadActivation();
+                WeightMatrix weights = WeightMatrix.Read(reader);
+
+                CompactIO.Require(kernelHeight > 0 && kernelWidth > 0 && stride > 0 && padding >= 0, "Invalid convolution");
+                CompactIO.Require(output.Height == ((input.Height + (2 * padding) - kernelHeight) / stride) + 1
+                                  && output.Width == ((input.Width + (2 * padding) - kernelWidth) / stride) + 1, "The convolution output does not fit its input");
+                CompactIO.Require(weights.Rows == input.Channels * kernelHeight * kernelWidth && weights.Columns == output.Channels && weights.Precision == precision,
+                                  "The convolution weights do not fit its kernel");
+                CompactIO.Require(bias == null || bias.Length == output.Channels, "The convolution needs one bias per filter");
+                return new Convolution(input, output, kernelHeight, kernelWidth, stride, padding, bias, activation, weights);
             }
 
             /// <param name="filterWeights">Filter by filter, as the layer keeps them: [filter, channel, ky, kx]</param>
@@ -394,6 +535,37 @@ namespace ANN.Net.Compact
                 activation = Function(layer.ActivationType);
             }
 
+            private ScaleShift(int positions, float[] scale, float[] shift, ActivationTypes activationType)
+            {
+                this.positions = positions;
+                this.scale = scale;
+                this.shift = shift;
+                activation = Function(activationType);
+            }
+
+            public int InputSize => positions * scale.Length;
+
+            public int OutputSize => InputSize;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)2);
+                writer.Write(positions);
+                writer.WriteArray(scale);
+                writer.WriteArray(shift);
+                writer.Write((int)activation.Type);
+            }
+
+            public static ScaleShift Read(BinaryReader reader)
+            {
+                int positions = reader.ReadInt32();
+                float[] scale = reader.ReadArray<float>(), shift = reader.ReadArray<float>();
+                ActivationTypes activation = reader.ReadActivation();
+                CompactIO.Require(positions > 0 && scale.Length > 0 && shift.Length == scale.Length && (long)positions * scale.Length <= int.MaxValue,
+                                  "Invalid batch normalization");
+                return new ScaleShift(positions, scale, shift, activation);
+            }
+
             public long ParameterCount => scale.Length + shift.Length;
 
             public long SizeInBytes => 4L * ParameterCount;
@@ -418,6 +590,30 @@ namespace ANN.Net.Compact
             private readonly PoolingLayer layer;
 
             public Pooling(PoolingLayer layer) => this.layer = layer;
+
+            public int InputSize => layer.InputShape.Size;
+
+            public int OutputSize => layer.OutputShape.Size;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)3);
+                WriteShape(writer, layer.InputShape);
+                writer.Write((int)layer.Type);
+                writer.Write(layer.Size);
+                writer.Write(layer.Stride);
+                writer.Write(layer.Padding);
+            }
+
+            public static Pooling Read(BinaryReader reader)
+            {
+                Shape input = ReadShape(reader);
+                var type = (PoolingType)reader.ReadInt32();
+                int size = reader.ReadInt32(), stride = reader.ReadInt32(), padding = reader.ReadInt32();
+                CompactIO.Require(Enum.IsDefined(type) && size > 0 && stride > 0 && padding >= 0 && padding < size
+                                  && input.Height + (2 * padding) >= size && input.Width + (2 * padding) >= size, "Invalid pooling");
+                return new Pooling(new PoolingLayer(input, type, size, stride, padding));
+            }
 
             public long ParameterCount => 0;
 
@@ -470,6 +666,18 @@ namespace ANN.Net.Compact
 
             public GlobalAverage(Shape input) => this.input = input;
 
+            public int InputSize => input.Size;
+
+            public int OutputSize => input.Channels;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)4);
+                WriteShape(writer, input);
+            }
+
+            public static GlobalAverage Read(BinaryReader reader) => new GlobalAverage(ReadShape(reader));
+
             public long ParameterCount => 0;
 
             public long SizeInBytes => 0;
@@ -501,6 +709,30 @@ namespace ANN.Net.Compact
                 this.main = main;
                 this.shortcut = shortcut;
                 activation = Function(activationType);
+            }
+
+            public int InputSize => main.Count > 0 ? main[0].InputSize : shortcut[0].InputSize;
+
+            public int OutputSize => main.Count > 0 ? main[^1].OutputSize : InputSize;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)5);
+                WriteOperations(writer, main);
+                WriteOperations(writer, shortcut);
+                writer.Write((int)activation.Type);
+            }
+
+            public static Residual Read(BinaryReader reader, WeightPrecision precision, int inputSize, int depth)
+            {
+                IOperation[] main = ReadOperations(reader, precision, inputSize, depth + 1);
+                IOperation[] shortcut = ReadOperations(reader, precision, inputSize, depth + 1);
+                ActivationTypes activation = reader.ReadActivation();
+
+                CompactIO.Require(main.Length > 0, "A residual block without operations");
+                int mainOutput = main[^1].OutputSize, shortcutOutput = shortcut.Length > 0 ? shortcut[^1].OutputSize : inputSize;
+                CompactIO.Require(mainOutput == shortcutOutput, "The two paths of a residual block end with different sizes");
+                return new Residual(main, shortcut, activation);
             }
 
             public IEnumerable<float[]> Weights => main.Concat(shortcut).SelectMany(x => x.Weights);
@@ -543,6 +775,36 @@ namespace ANN.Net.Compact
                 pending = Floats(layer.Weights);
                 bias = Floats(layer.Biases);
                 activation = Function(layer.ActivationType);
+            }
+
+            private Dense(float[] bias, ActivationTypes activationType, WeightMatrix weights)
+            {
+                inputs = weights.Rows;
+                outputs = weights.Columns;
+                this.bias = bias;
+                activation = Function(activationType);
+                this.weights = weights;
+            }
+
+            public int InputSize => inputs;
+
+            public int OutputSize => outputs;
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.Write((byte)6);
+                writer.WriteArray(bias);
+                writer.Write((int)activation.Type);
+                weights.Write(writer);
+            }
+
+            public static Dense Read(BinaryReader reader, WeightPrecision precision)
+            {
+                float[] bias = reader.ReadArray<float>();
+                ActivationTypes activation = reader.ReadActivation();
+                WeightMatrix weights = WeightMatrix.Read(reader);
+                CompactIO.Require(weights.Rows > 0 && weights.Columns == bias.Length && weights.Precision == precision, "The dense weights do not fit its biases");
+                return new Dense(bias, activation, weights);
             }
 
             public IEnumerable<float[]> Weights => new[] { pending };

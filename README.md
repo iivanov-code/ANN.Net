@@ -103,6 +103,19 @@ ICompactNetwork pruned = NetworkCompactor.Compact(network, options);
 
 Pruning does not retrain the network, so how much it tolerates depends on the network; check the accuracy.
 
+### Saving compact networks
+
+```csharp
+CompactNetworkSerializer.Save(compact, "model.annc");
+ICompactNetwork loaded = CompactNetworkSerializer.Load("model.annc");
+```
+
+The binary file holds the weights as they are stored (32-bit, 16-bit or 8-bit, dense or sparse), so it is about
+`SizeInBytes` long — 11.7 MB for an int8 ResNet-18 — and the loaded network computes bit for bit what the saved one
+computes. Loading checks that every operation fits the one before it and throws `InvalidDataException` for a damaged
+file. A compact network cannot be trained; save the network itself with `NetworkSerializer` for that, or export it
+to ONNX for other tools.
+
 Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
 batch normalizations that follow a convolution are folded into it. Convolutions run as one matrix product per
 output position over all filters, with SIMD. Convolutional networks compute as with

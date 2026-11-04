@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -138,6 +139,67 @@ namespace ANN.Net.Compact
                                     keptInt8, keptScales, starts,
                                     indexBytes == 2 ? Array.ConvertAll(columnIndexes, x => (ushort)x) : null,
                                     indexBytes == 4 ? columnIndexes : null);
+        }
+
+        public void Write(BinaryWriter writer)
+        {
+            writer.Write(Rows);
+            writer.Write(Columns);
+            writer.Write((byte)Precision);
+            writer.WriteArray(single);
+            writer.WriteArray(half);
+            writer.WriteArray(int8);
+            writer.WriteArray(scales);
+            writer.WriteArray(rowStarts);
+            writer.WriteArray(shortColumns);
+            writer.WriteArray(columns);
+        }
+
+        public static WeightMatrix Read(BinaryReader reader)
+        {
+            int rows = reader.ReadInt32(), columnCount = reader.ReadInt32();
+            var precision = (WeightPrecision)reader.ReadByte();
+            CompactIO.Require(rows >= 0 && columnCount >= 0 && Enum.IsDefined(precision), "Invalid weight matrix");
+
+            float[] single = reader.ReadArray<float>(true);
+            Half[] half = reader.ReadArray<Half>(true);
+            sbyte[] int8 = reader.ReadArray<sbyte>(true);
+            float[] scales = reader.ReadArray<float>(true);
+            int[] rowStarts = reader.ReadArray<int>(true);
+            ushort[] shortColumns = reader.ReadArray<ushort>(true);
+            int[] columns = reader.ReadArray<int>(true);
+
+            long stored = precision switch
+            {
+                WeightPrecision.Single => single?.Length ?? -1,
+                WeightPrecision.Half => half?.Length ?? -1,
+                _ => int8?.Length ?? -1
+            };
+            int formats = (single != null ? 1 : 0) + (half != null ? 1 : 0) + (int8 != null ? 1 : 0);
+            CompactIO.Require(stored >= 0 && formats == 1, "The weights are missing or stored in more than one format");
+            CompactIO.Require((precision == WeightPrecision.Int8) == (scales != null) && (scales == null || scales.Length == columnCount),
+                              "Int8 weights need one scale per column");
+
+            if (rowStarts == null)
+            {
+                CompactIO.Require(stored == (long)rows * columnCount && shortColumns == null && columns == null, "Dense weights do not fill the matrix");
+            }
+            else
+            {
+                CompactIO.Require(rowStarts.Length == rows + 1 && rowStarts[0] == 0 && rowStarts[rows] == stored, "Invalid sparse rows");
+                for (int r = 0; r < rows; r++) CompactIO.Require(rowStarts[r] <= rowStarts[r + 1], "Invalid sparse rows");
+
+                CompactIO.Require((shortColumns == null) != (columns == null), "Sparse weights need column indexes");
+                long indexes = shortColumns?.Length ?? columns.Length;
+                CompactIO.Require(indexes == stored, "Sparse weights need one column index per weight");
+                for (int k = 0; k < indexes; k++)
+                {
+                    int column = shortColumns != null ? shortColumns[k] : columns[k];
+                    CompactIO.Require(column >= 0 && column < columnCount, "Sparse column index out of range");
+                }
+            }
+
+            return new WeightMatrix(rows, columnCount, precision, single, half, int8, scales, rowStarts, shortColumns, columns);
         }
 
         /// <summary>

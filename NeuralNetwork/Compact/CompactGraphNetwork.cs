@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using ANN.Net.Abstractions.Enums;
@@ -46,10 +47,103 @@ namespace ANN.Net.Compact
             outputColumns = plan.OutputColumns;
             divideBySum = plan.DivideBySum;
             gatherLength = Math.Max(inputCount, groups.Select(g => g.Sources.Length).DefaultIfEmpty(0).Max());
+            (ParameterCount, SizeInBytes) = Sizes();
+        }
 
-            ParameterCount = groups.Sum(g => (g.Weights?.StoredValues ?? 0) + g.Bias.Length) + ((inputMinimum?.Length ?? 0) * 2);
-            SizeInBytes = groups.Sum(g => (g.Weights?.SizeInBytes ?? 0) + (4L * (g.Bias.Length + g.Sources.Length)))
-                          + ((inputMinimum?.Length ?? 0) * 8L) + (4L * outputColumns.Length);
+        private CompactGraphNetwork(WeightPrecision precision, int inputCount, float[] inputMinimum, float[] inputRange, InputGroup[] inputGroups,
+                                    Group[] groups, int width, int[] outputColumns, bool divideBySum)
+        {
+            Precision = precision;
+            this.inputCount = inputCount;
+            this.inputMinimum = inputMinimum;
+            this.inputRange = inputRange;
+            this.inputGroups = inputGroups;
+            this.groups = groups;
+            this.width = width;
+            this.outputColumns = outputColumns;
+            this.divideBySum = divideBySum;
+            gatherLength = Math.Max(inputCount, groups.Select(g => g.Sources.Length).DefaultIfEmpty(0).Max());
+            (ParameterCount, SizeInBytes) = Sizes();
+        }
+
+        private (long Parameters, long Bytes) Sizes()
+        {
+            long parameters = groups.Sum(g => (g.Weights?.StoredValues ?? 0) + g.Bias.Length) + ((inputMinimum?.Length ?? 0) * 2);
+            long bytes = groups.Sum(g => (g.Weights?.SizeInBytes ?? 0) + (4L * (g.Bias.Length + g.Sources.Length)))
+                         + ((inputMinimum?.Length ?? 0) * 8L) + (4L * outputColumns.Length);
+            return (parameters, bytes);
+        }
+
+        internal void Write(BinaryWriter writer)
+        {
+            writer.Write(inputCount);
+            writer.WriteArray(inputMinimum);
+            writer.WriteArray(inputRange);
+            writer.Write(inputGroups.Length);
+            foreach (InputGroup group in inputGroups)
+            {
+                writer.Write((int)group.Activation.Type);
+                writer.WriteArray(group.Positions);
+            }
+
+            writer.Write(width);
+            writer.Write(groups.Length);
+            foreach (Group group in groups) group.Write(writer);
+            writer.WriteArray(outputColumns);
+            writer.Write(divideBySum);
+        }
+
+        /// <summary>
+        /// Reads what <see cref="Write"/> wrote, checking everything an evaluation relies on
+        /// </summary>
+        internal static CompactGraphNetwork Read(BinaryReader reader, WeightPrecision precision)
+        {
+            int inputCount = reader.ReadInt32();
+            CompactIO.Require(inputCount > 0, "The network has no inputs");
+
+            float[] minimum = reader.ReadArray<float>(true), range = reader.ReadArray<float>(true);
+            CompactIO.Require((minimum == null) == (range == null) && (minimum == null || (minimum.Length == inputCount && range.Length == inputCount)),
+                              "Invalid input normalization");
+
+            int inputGroupCount = reader.ReadInt32();
+            CompactIO.Require(inputGroupCount >= 0 && inputGroupCount <= inputCount, "Invalid input groups");
+            var inputGroups = new InputGroup[inputGroupCount];
+            var seen = new bool[inputCount];
+            for (int g = 0; g < inputGroupCount; g++)
+            {
+                ActivationTypes activation = reader.ReadActivation();
+                int[] positions = reader.ReadArray<int>();
+                foreach (int position in positions)
+                {
+                    CompactIO.Require(position >= 0 && position < inputCount && !seen[position], "Invalid input group position");
+                    seen[position] = true;
+                }
+
+                inputGroups[g] = new InputGroup(positions, CompactActivation.Of(activation));
+            }
+
+            CompactIO.Require(inputGroupCount == 0 || Array.TrueForAll(seen, x => x), "The input groups do not cover every input");
+
+            int width = reader.ReadInt32();
+            int groupCount = reader.ReadInt32();
+            CompactIO.Require(width >= inputCount && groupCount >= 0 && groupCount <= width, "Invalid columns");
+            var groups = new Group[groupCount];
+            int next = inputCount;
+            for (int g = 0; g < groupCount; g++)
+            {
+                groups[g] = Group.Read(reader, precision);
+                CompactIO.Require(groups[g].FirstColumn == next, "The neuron groups do not follow each other");
+                next += groups[g].Bias.Length;
+                CompactIO.Require(next <= width, "A neuron group lies outside the columns");
+            }
+
+            CompactIO.Require(next == width, "The neuron groups do not fill the columns");
+
+            int[] outputColumns = reader.ReadArray<int>();
+            CompactIO.Require(outputColumns.Length > 0 && Array.TrueForAll(outputColumns, c => c >= -1 && c < width), "Invalid output columns");
+            bool divideBySum = reader.ReadBoolean();
+
+            return new CompactGraphNetwork(precision, inputCount, minimum, range, inputGroups, groups, width, outputColumns, divideBySum);
         }
 
         public int InputCount => inputCount;
@@ -175,13 +269,44 @@ namespace ANN.Net.Compact
             private readonly bool contiguous;
 
             public Group(GraphPlan.NeuronGroup group, WeightPrecision precision)
+                : this(group.Sources, group.Bias, group.FirstColumn, group.Activation,
+                       group.Sources.Length == 0 ? null : WeightMatrix.Create(group.Weights, group.Sources.Length, group.Count, precision))
             {
-                Sources = group.Sources;
-                Bias = group.Bias;
-                FirstColumn = group.FirstColumn;
-                activation = CompactActivation.Of(group.Activation);
-                Weights = Sources.Length == 0 ? null : WeightMatrix.Create(group.Weights, Sources.Length, group.Count, precision);
+            }
+
+            private Group(int[] sources, float[] bias, int firstColumn, ActivationTypes activation, WeightMatrix weights)
+            {
+                Sources = sources;
+                Bias = bias;
+                FirstColumn = firstColumn;
+                this.activation = CompactActivation.Of(activation);
+                Weights = weights;
                 contiguous = Sources.Select((c, i) => c - i).Distinct().Count() <= 1;
+            }
+
+            public void Write(BinaryWriter writer)
+            {
+                writer.WriteArray(Sources);
+                writer.WriteArray(Bias);
+                writer.Write(FirstColumn);
+                writer.Write((int)activation.Type);
+                writer.Write(Weights != null);
+                Weights?.Write(writer);
+            }
+
+            public static Group Read(BinaryReader reader, WeightPrecision precision)
+            {
+                int[] sources = reader.ReadArray<int>();
+                float[] bias = reader.ReadArray<float>();
+                int firstColumn = reader.ReadInt32();
+                ActivationTypes activation = reader.ReadActivation();
+                WeightMatrix weights = reader.ReadBoolean() ? WeightMatrix.Read(reader) : null;
+
+                CompactIO.Require(bias.Length > 0, "A neuron group without neurons");
+                CompactIO.Require(Array.TrueForAll(sources, c => c >= 0 && c < firstColumn), "A neuron group reads a column that is not computed before it");
+                CompactIO.Require(weights == null ? sources.Length == 0 : weights.Rows == sources.Length && weights.Columns == bias.Length && weights.Precision == precision,
+                                  "The weights of a neuron group do not match its sources and neurons");
+                return new Group(sources, bias, firstColumn, activation, weights);
             }
 
             public int[] Sources { get; }
