@@ -27,6 +27,9 @@ namespace ANN.Net
             if (network is ConvolutionalNetwork convolutional)
                 return new CompactConvolutionalNetwork(convolutional, options);
 
+            if (network is Matrix.MatrixNetwork matrix)
+                return new CompactGraphNetwork(GraphPlan.Create(matrix), options);
+
             return new CompactGraphNetwork(GraphPlan.Create(NetworkSerializer.ToDocument(network)), options);
         }
 

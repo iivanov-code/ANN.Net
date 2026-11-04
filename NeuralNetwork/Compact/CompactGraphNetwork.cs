@@ -270,7 +270,7 @@ namespace ANN.Net.Compact
 
             public Group(GraphPlan.NeuronGroup group, WeightPrecision precision)
                 : this(group.Sources, group.Bias, group.FirstColumn, group.Activation,
-                       group.Sources.Length == 0 ? null : WeightMatrix.Create(group.Weights, group.Sources.Length, group.Count, precision))
+                       group.Sources.Length == 0 ? null : WeightMatrix.Create(group.Weights, group.Sources.Length, group.Count, precision, owned: true))
             {
             }
 

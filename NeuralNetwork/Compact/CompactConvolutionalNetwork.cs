@@ -380,7 +380,7 @@ namespace ANN.Net.Compact
 
             public void Seal(float threshold, WeightPrecision precision)
             {
-                weights = WeightMatrix.Create(Pruned(transposed, threshold), transposed.Length / output.Channels, output.Channels, precision);
+                weights = WeightMatrix.Create(Pruned(transposed, threshold), transposed.Length / output.Channels, output.Channels, precision, owned: true);
                 transposed = null;
             }
 
@@ -811,7 +811,7 @@ namespace ANN.Net.Compact
 
             public void Seal(float threshold, WeightPrecision precision)
             {
-                weights = WeightMatrix.Create(Pruned(pending, threshold), inputs, outputs, precision);
+                weights = WeightMatrix.Create(Pruned(pending, threshold), inputs, outputs, precision, owned: true);
                 pending = null;
             }
 

@@ -74,8 +74,11 @@ namespace ANN.Net
             if (network is Convolutional.ConvolutionalNetwork convolutional)
                 return new ConvolutionalOnnxBuilder(convolutional, options).Build();
 
+            if (network is Matrix.MatrixNetwork matrix)
+                return new Builder(GraphPlan.Create(matrix), "Exported from an ANN.Net matrix network", options).Build();
+
             NetworkDocument document = NetworkSerializer.ToDocument(network);
-            return new Builder(document, options).Build();
+            return new Builder(GraphPlan.Create(document), $"Exported from an ANN.Net {document.Kind} network", options).Build();
         }
 
         /// <summary>
@@ -85,16 +88,16 @@ namespace ANN.Net
         private sealed class Builder
         {
             private readonly GraphPlan plan;
-            private readonly NetworkDocument document;
+            private readonly string description;
             private readonly OnnxExportOptions options;
             private readonly OnnxGraph graph = new OnnxGraph();
             private string zeroColumn;
 
-            public Builder(NetworkDocument document, OnnxExportOptions options)
+            public Builder(GraphPlan plan, string description, OnnxExportOptions options)
             {
-                this.document = document;
+                this.plan = plan;
+                this.description = description;
                 this.options = options;
-                plan = GraphPlan.Create(document);
             }
 
             public byte[] Build()
@@ -114,8 +117,7 @@ namespace ANN.Net
 
                 Outputs(values);
 
-                return graph.ToModel(options.GraphName, options.InputName, plan.InputCount, options.OutputName, plan.OutputColumns.Length,
-                                     $"Exported from an ANN.Net {document.Kind} network");
+                return graph.ToModel(options.GraphName, options.InputName, plan.InputCount, options.OutputName, plan.OutputColumns.Length, description);
             }
 
             /// <summary>

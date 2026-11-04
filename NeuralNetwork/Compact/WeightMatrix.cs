@@ -80,7 +80,8 @@ namespace ANN.Net.Compact
         };
 
         /// <param name="weights">Row by row: the weight from input r to column c is at r * columns + c</param>
-        public static WeightMatrix Create(float[] weights, int rows, int columnCount, WeightPrecision precision)
+        /// <param name="owned">The caller hands the array over: dense 32-bit weights keep it instead of a copy</param>
+        public static WeightMatrix Create(float[] weights, int rows, int columnCount, WeightPrecision precision, bool owned = false)
         {
             ArgumentNullException.ThrowIfNull(weights);
             if (weights.Length != (long)rows * columnCount)
@@ -100,7 +101,7 @@ namespace ANN.Net.Compact
             if (sparse > dense * SparseShare)
             {
                 return new WeightMatrix(rows, columnCount, precision,
-                                        precision == WeightPrecision.Single ? (float[])weights.Clone() : null,
+                                        precision == WeightPrecision.Single ? (owned ? weights : (float[])weights.Clone()) : null,
                                         precision == WeightPrecision.Half ? ToHalf(weights) : null,
                                         precision == WeightPrecision.Int8 ? ToInt8(weights, scales, columnCount, 1) : null,
                                         scales, null, null, null);

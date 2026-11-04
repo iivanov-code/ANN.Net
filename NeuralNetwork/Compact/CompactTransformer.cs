@@ -252,7 +252,7 @@ namespace ANN.Net.Compact
                     }
                 }
 
-                weights = WeightMatrix.Create(Pending, Inputs, Outputs, precision);
+                weights = WeightMatrix.Create(Pending, Inputs, Outputs, precision, owned: true);
                 Pending = null;
             }
 

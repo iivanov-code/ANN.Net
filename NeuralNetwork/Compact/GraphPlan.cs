@@ -81,6 +81,49 @@ namespace ANN.Net.Compact
             return new Planner(document).Plan();
         }
 
+        /// <summary>
+        /// The plan of a matrix network, read from its weight matrices: one level of one group per layer. A layered
+        /// document would hold one object per weight
+        /// </summary>
+        public static GraphPlan Create(Matrix.MatrixNetwork network)
+        {
+            var plan = new GraphPlan { InputCount = network.InputCount, DivideBySum = network.OutputApplySoftMax };
+
+            if (network.ShouldNormalize)
+            {
+                if (network.MinMaxValues == null || network.MinMaxValues.Count < network.InputCount)
+                    throw new NotSupportedException("The network normalizes its inputs but has no min/max value for every input");
+
+                plan.InputMinimum = network.MinMaxValues.Take(network.InputCount).Select(v => (float)v.Item1).ToArray();
+                plan.InputRange = network.MinMaxValues.Take(network.InputCount).Select(v => (float)v.Item2 - (float)v.Item1).ToArray();
+            }
+
+            plan.InputGroups = network.InputActivation == ActivationTypes.Identity
+                ? new List<InputGroup>()
+                : new List<InputGroup> { new InputGroup(network.InputActivation, Enumerable.Range(0, network.InputCount).ToArray()) };
+
+            var levels = new List<IReadOnlyList<NeuronGroup>>();
+            int first = 0, width = network.InputCount;
+            foreach (Matrix.MatrixLayer layer in network.Layers)
+            {
+                float[] weights = new float[layer.Weights.Length];
+                for (int i = 0; i < weights.Length; i++) weights[i] = layer.Weights[i];
+                float[] bias = layer.Bias == null ? new float[layer.Outputs] : layer.Bias.Select(x => (float)x).ToArray();
+
+                levels.Add(new[]
+                {
+                    new NeuronGroup(Enumerable.Range(first, layer.Inputs).ToArray(), weights, bias, layer.Activate ? layer.Activation : ActivationTypes.Identity, width)
+                });
+                first = width;
+                width += layer.Outputs;
+            }
+
+            plan.Levels = levels;
+            plan.Width = width;
+            plan.OutputColumns = Enumerable.Range(first, network.Layers[^1].Outputs).ToArray();
+            return plan;
+        }
+
         private sealed class Planner
         {
             private readonly NetworkDocument document;
