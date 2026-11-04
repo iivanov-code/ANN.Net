@@ -142,6 +142,31 @@ Recurrent networks cannot be compacted: `BuildRNN` and `BuildCellRNN` return nul
 implemented, and layers with `NeuronType.RNN` connect the neurons of a layer to each other within one propagation
 instead of to the previous time step, so they keep no state between inputs.
 
+## How many parameters fit in memory
+
+Measured bytes per weight (for a 256 M parameter matrix network the measurement matches to two decimals) and what
+that means for 32 GB (32 GiB, before the room the operating system and runtime need):
+
+| Network | Bytes per parameter | Parameters in 32 GB |
+|---|---|---|
+| Neuron network (`BuildFFN`), plain gradient descent | 70 | 0.49 billion |
+| Neuron network, Adam | 125 | 0.27 billion |
+| Graph network (`BuildGraph`, NEAT), per connection | ≈ 200 | 0.17 billion |
+| Matrix, convolutional or transformer network, plain gradient descent | 4 | 8.6 billion |
+| … Momentum, Nesterov or RMSprop (one state value per weight) | 8 | 4.3 billion |
+| … Adam, AdaMax or Nadam (two) | 12 | 2.9 billion |
+| … AmsGrad (three) | 16 | 2.1 billion |
+| Compact, 32-bit | 4 | 8.6 billion |
+| Compact, 16-bit | 2 | 17 billion |
+| Compact, 8-bit | 1 | 34 billion |
+| Compact, 8-bit, 80 % pruned (3 bytes per kept weight) | 0.6 per original weight | 11 billion kept, of a 57 billion network |
+
+One weight matrix (a layer, a convolution, a projection) holds at most about 2.1 billion weights, the length limit
+of a .NET array. Training also keeps the activations of the last propagation (small for layered networks, tens of
+MB per image for ResNet-18), compacting needs the original and the copy at once, and the JSON files of
+`NetworkSerializer` hold an object per weight, so they do not suit networks of billions of weights; compact networks
+save in their own binary format.
+
 ## Optimizers
 
 Every trainable value is updated by an optimizer of the network's `OptimizerType`: convolutional networks,
