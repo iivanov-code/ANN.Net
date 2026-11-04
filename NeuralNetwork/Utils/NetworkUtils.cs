@@ -12,18 +12,14 @@ namespace ANN.Net.Utils
 {
     public static class NetworkUtils
     {
-        private static object idPadlock = new object();
-        private static uint Id = 0;
+        private static int lastId = -1;
 
+        /// <summary>
+        /// A new id, unique also when networks are built on several threads at once
+        /// </summary>
         public static uint NewID()
         {
-            uint id = Id;
-            lock (idPadlock)
-            {
-                Id++;
-            }
-
-            return id;
+            return unchecked((uint)System.Threading.Interlocked.Increment(ref lastId));
         }
 
         public static Quad RandomWeight()
