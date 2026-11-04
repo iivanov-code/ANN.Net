@@ -1,4 +1,6 @@
-﻿namespace ANN.Net.Abstractions.Interfaces
+﻿using ANN.Net.Abstractions.Enums;
+
+namespace ANN.Net.Abstractions.Interfaces
 {
     /// <summary>
     /// Inference-only copy of a trained network that keeps nothing but its weights in flat arrays, built by
@@ -16,6 +18,16 @@
         /// Number of weights, biases and other stored values
         /// </summary>
         long ParameterCount { get; }
+
+        /// <summary>
+        /// Number format of the weight matrices
+        /// </summary>
+        WeightPrecision Precision { get; }
+
+        /// <summary>
+        /// Bytes taken by the stored weights and other values, without the few objects around them
+        /// </summary>
+        long SizeInBytes { get; }
 
         Quad[] Propagate(params Quad[] values);
     }

@@ -26,6 +26,14 @@ namespace ANN.Net
         public string OutputName { get; set; } = "output";
 
         public string GraphName { get; set; } = "ann_net";
+
+        /// <summary>
+        /// Number format of the weight matrices in the file: float16 weights are cast to float, int8 weights are
+        /// dequantized with one scale per neuron or filter. Graph and layered networks then compute what the compact
+        /// network of the same precision computes; convolutional networks quantize the weights before batch
+        /// normalization, which compact networks fold into them first, so the two differ by a little rounding
+        /// </summary>
+        public WeightPrecision WeightPrecision { get; set; } = WeightPrecision.Single;
     }
 
     /// <summary>
@@ -153,7 +161,7 @@ namespace ANN.Net
             private string WeightedSum(string values, GraphPlan.NeuronGroup group)
             {
                 string sum = group.Sources.Length > 0
-                    ? graph.Node("MatMul", new[] { Gather(values, group.Sources), graph.FloatTensor("weights", group.Weights, group.Sources.Length, group.Count) })
+                    ? graph.Node("MatMul", new[] { Gather(values, group.Sources), graph.WeightTensor("weights", group.Weights, options.WeightPrecision, 1, group.Sources.Length, group.Count) })
                     : ZeroColumn(); // fed only by bias neurons; broadcasts to [batch, neurons] below
 
                 if (group.Sources.Length == 0 || group.Bias.Any(b => b != 0))

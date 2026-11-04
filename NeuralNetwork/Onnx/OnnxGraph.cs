@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Compact;
 
 namespace ANN.Net.Onnx
 {
@@ -16,6 +19,8 @@ namespace ANN.Net.Onnx
 
         private const int FloatType = 1;
         private const int Int64Type = 7;
+        private const int Int8Type = 3;
+        private const int Float16Type = 10;
 
         private const int AttributeFloat = 1;
         private const int AttributeInt = 2;
@@ -39,6 +44,42 @@ namespace ANN.Net.Onnx
             string name = Name(prefix);
             initializers.Add(w => WriteTensor(w, name, FloatType, MemoryMarshal.AsBytes(values.AsSpan()).ToArray(), dims));
             return name;
+        }
+
+        /// <summary>
+        /// Float weights stored in <paramref name="precision"/>: float16 initializers are cast to float, int8
+        /// initializers are dequantized with one scale per index of <paramref name="channelAxis"/>, quantized exactly as
+        /// compact networks quantize them
+        /// </summary>
+        public string WeightTensor(string prefix, float[] values, WeightPrecision precision, int channelAxis, params long[] dims)
+        {
+            switch (precision)
+            {
+                case WeightPrecision.Half:
+                {
+                    string name = Name(prefix + "_f16");
+                    Half[] half = WeightMatrix.ToHalf(values);
+                    initializers.Add(w => WriteTensor(w, name, Float16Type, MemoryMarshal.AsBytes(half.AsSpan()).ToArray(), dims));
+                    return Node("Cast", new[] { name }, IntAttribute("to", FloatType));
+                }
+
+                case WeightPrecision.Int8:
+                {
+                    int channels = (int)dims[channelAxis];
+                    int stride = (int)dims.Skip(channelAxis + 1).Aggregate(1L, (a, b) => a * b);
+                    float[] scales = WeightMatrix.Int8Scales(values, channels, stride);
+                    sbyte[] quantized = WeightMatrix.ToInt8(values, scales, channels, stride);
+
+                    string name = Name(prefix + "_int8");
+                    initializers.Add(w => WriteTensor(w, name, Int8Type, MemoryMarshal.AsBytes(quantized.AsSpan()).ToArray(), dims));
+                    string zero = Name(prefix + "_zero_point");
+                    initializers.Add(w => WriteTensor(w, zero, Int8Type, new byte[channels], channels));
+                    return Node("DequantizeLinear", new[] { name, FloatTensor(prefix + "_scale", scales, channels), zero }, IntAttribute("axis", channelAxis));
+                }
+
+                default:
+                    return FloatTensor(prefix, values, dims);
+            }
         }
 
         public string Int64Tensor(string prefix, long[] values, params long[] dims)

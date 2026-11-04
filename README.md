@@ -33,11 +33,37 @@ network = null;                                                // the original c
 
 | Network | Memory | One propagation |
 |---|---|---|
-| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.6 ms |
-| ResNet-18, 224 × 224 | 555 MB → 47.6 MB | 7.9 s → 2.9 s |
+| Layered 784-256-256-10 | 80.3 MB → 1.1 MB | 60.7 ms → 0.08 ms |
+| ResNet-18, 224 × 224 | 555 MB → 46.7 MB | 7.9 s → 0.28 s |
+
+### 16-bit and 8-bit weights
+
+`CompactOptions.Precision` stores the weight matrices as 16-bit floats or as 8-bit integers with one scale per neuron
+or filter (symmetric quantization, the largest weight maps to ±127). Biases, input normalization and batch
+normalization stay 32-bit.
+
+```csharp
+ICompactNetwork small = NetworkCompactor.Compact(network, new CompactOptions { Precision = WeightPrecision.Int8 });
+byte[] onnx = OnnxExporter.Export(network, new OnnxExportOptions { WeightPrecision = WeightPrecision.Int8 });
+```
+
+| | Single | Half | Int8 |
+|---|---|---|---|
+| ResNet-18 weights | 46.7 MB | 23.4 MB | 11.7 MB |
+| ResNet-18, one image | 282 ms | 491 ms | 218 ms |
+| 784-256-256-10, one propagation | 0.08 ms | 0.34 ms | 0.19 ms |
+| Trained 10-48-48-4 classifier, test accuracy | 98.4 % | 98.4 % | 98.4 % |
+| Largest output change of that classifier | — | 0.001 | 0.014 |
+
+Small weights cost conversion time in dense layers, which read every weight once per propagation; convolutions reuse
+every weight many times and int8 is the fastest there. `OnnxExportOptions.WeightPrecision` writes the same
+weights to ONNX (float16 initializers cast to float, int8 initializers with `DequantizeLinear`), so the exported
+graph computes what the compact network of that precision computes. ONNX Runtime may then also quantize the inputs
+of the matrix products it fuses with `DequantizeLinear`, which changes the outputs by a little more rounding.
 
 Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
-batch normalizations that follow a convolution are folded into it. Convolutional networks compute as with
+batch normalizations that follow a convolution are folded into it. Convolutions run as one matrix product per
+output position over all filters, with SIMD. Convolutional networks compute as with
 `Training = false`. A compact network is a snapshot: training the original later does not change it. It keeps no
 state between calls, so one copy can serve several threads at once. `NetworkCompactor.CompactGraph(settings)`
 compiles `GraphNetworkSettings` straight into a compact network without building the graph network first, which is

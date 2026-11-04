@@ -53,7 +53,7 @@ namespace ANN.Net.Onnx
             {
                 case ConvolutionLayer convolution:
                     value = Spatial(value, ref flat);
-                    string weights = graph.FloatTensor("conv_weights", Floats(convolution.Weights),
+                    string weights = graph.WeightTensor("conv_weights", Floats(convolution.Weights), options.WeightPrecision, 0,
                                                        convolution.OutputShape.Channels, convolution.InputShape.Channels, convolution.KernelHeight, convolution.KernelWidth);
                     string[] inputs = convolution.Biases == null
                         ? new[] { value, weights }
@@ -106,7 +106,7 @@ namespace ANN.Net.Onnx
                         flat = true;
                     }
 
-                    string denseWeights = graph.FloatTensor("dense_weights", Floats(dense.Weights), dense.InputShape.Size, dense.OutputShape.Size);
+                    string denseWeights = graph.WeightTensor("dense_weights", Floats(dense.Weights), options.WeightPrecision, 1, dense.InputShape.Size, dense.OutputShape.Size);
                     value = graph.Node("MatMul", new[] { value, denseWeights });
                     value = graph.Node("Add", new[] { value, graph.FloatTensor("dense_biases", Floats(dense.Biases), dense.OutputShape.Size) });
                     return OnnxActivations.Apply(graph, value, dense.ActivationType);

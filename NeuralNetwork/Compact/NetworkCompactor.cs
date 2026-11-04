@@ -19,14 +19,15 @@ namespace ANN.Net
         /// networks as with <see cref="IConvolutionalNetwork.Training"/> set to false); later training of the network
         /// does not change it. Once the original network is no longer referenced, its memory is freed
         /// </summary>
-        public static ICompactNetwork Compact(INetwork network)
+        /// <param name="options">Number format of the weights; 32-bit floats when null</param>
+        public static ICompactNetwork Compact(INetwork network, CompactOptions options = null)
         {
             ArgumentNullException.ThrowIfNull(network);
 
             if (network is ConvolutionalNetwork convolutional)
-                return new CompactConvolutionalNetwork(convolutional);
+                return new CompactConvolutionalNetwork(convolutional, options);
 
-            return new CompactGraphNetwork(GraphPlan.Create(NetworkSerializer.ToDocument(network)));
+            return new CompactGraphNetwork(GraphPlan.Create(NetworkSerializer.ToDocument(network)), options);
         }
 
         /// <summary>
@@ -35,9 +36,9 @@ namespace ANN.Net
         /// phenotypes of NEAT genomes, this is several times faster and smaller. The settings are validated and pruned
         /// as <c>BuildGraph</c> does
         /// </summary>
-        public static ICompactNetwork CompactGraph(GraphNetworkSettings settings)
+        public static ICompactNetwork CompactGraph(GraphNetworkSettings settings, CompactOptions options = null)
         {
-            return new CompactGraphNetwork(GraphPlan.Create(GraphNetwork.ToPlanDocument(settings)));
+            return new CompactGraphNetwork(GraphPlan.Create(GraphNetwork.ToPlanDocument(settings)), options);
         }
     }
 }

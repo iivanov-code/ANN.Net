@@ -11,24 +11,48 @@ namespace ANN.Net.Compact
     /// </summary>
     internal sealed class CompactGraphNetwork : ICompactNetwork
     {
-        private readonly GraphPlan plan;
-        private readonly IActivationFunction[] inputActivations;
-        private readonly IActivationFunction[][] groupActivations;
+        [ThreadStatic]
+        private static float[] buffer;
 
-        public CompactGraphNetwork(GraphPlan plan)
+        private readonly int inputCount;
+        private readonly float[] inputMinimum, inputRange;
+        private readonly InputGroup[] inputGroups;
+        private readonly Group[][] levels;
+        private readonly int width;
+        private readonly int[] outputColumns;
+        private readonly bool divideBySum;
+        private readonly int bufferLength;
+
+        public CompactGraphNetwork(GraphPlan plan, CompactOptions options = null)
         {
-            this.plan = plan;
-            inputActivations = plan.InputGroups.Select(g => Function(g.Activation)).ToArray();
-            groupActivations = plan.Levels.Select(level => level.Select(g => Function(g.Activation)).ToArray()).ToArray();
-            ParameterCount = plan.Levels.SelectMany(x => x).Sum(g => (long)g.Weights.Length + g.Bias.Length)
-                             + ((plan.InputMinimum?.Length ?? 0) * 2);
+            options ??= new CompactOptions();
+            Precision = options.Precision;
+
+            inputCount = plan.InputCount;
+            inputMinimum = plan.InputMinimum;
+            inputRange = plan.InputRange;
+            inputGroups = plan.InputGroups.Select(g => new InputGroup(g.Positions, Function(g.Activation))).ToArray();
+            levels = plan.Levels.Select(level => level.Select(g => new Group(g, options.Precision)).ToArray()).ToArray();
+            width = plan.Width;
+            outputColumns = plan.OutputColumns;
+            divideBySum = plan.DivideBySum;
+
+            Group[] groups = levels.SelectMany(x => x).ToArray();
+            bufferLength = width + Math.Max(inputCount, groups.Select(g => g.Sources.Length).DefaultIfEmpty(0).Max());
+            ParameterCount = groups.Sum(g => (g.Weights?.StoredValues ?? 0) + g.Bias.Length) + ((inputMinimum?.Length ?? 0) * 2);
+            SizeInBytes = groups.Sum(g => (g.Weights?.SizeInBytes ?? 0) + (4L * (g.Bias.Length + g.Sources.Length)))
+                          + ((inputMinimum?.Length ?? 0) * 8L) + (4L * outputColumns.Length);
         }
 
-        public int InputCount => plan.InputCount;
+        public int InputCount => inputCount;
 
-        public int OutputCount => plan.OutputColumns.Length;
+        public int OutputCount => outputColumns.Length;
 
         public long ParameterCount { get; }
+
+        public WeightPrecision Precision { get; }
+
+        public long SizeInBytes { get; }
 
         private static IActivationFunction Function(ActivationTypes type) => type == ActivationTypes.Identity ? null : NetworkUtils.GetActivation(type);
 
@@ -38,50 +62,44 @@ namespace ANN.Net.Compact
             if (values.Length != InputCount)
                 throw new ArgumentException($"Expected {InputCount} input values but found {values.Length}", nameof(values));
 
-            var columns = new Quad[plan.Width];
-            var inputs = new Quad[InputCount];
-            for (int i = 0; i < inputs.Length; i++)
+            if (buffer == null || buffer.Length < bufferLength) buffer = new float[bufferLength];
+            Span<float> columns = buffer.AsSpan(0, width);
+            Span<float> work = buffer.AsSpan(width);
+
+            Span<float> inputs = work.Slice(0, inputCount);
+            for (int i = 0; i < inputCount; i++)
             {
-                inputs[i] = plan.InputMinimum == null ? values[i] : (values[i] - plan.InputMinimum[i]) / plan.InputRange[i];
+                inputs[i] = inputMinimum == null ? values[i] : (values[i] - inputMinimum[i]) / inputRange[i];
             }
 
-            if (plan.InputGroups.Count == 0)
+            if (inputGroups.Length == 0)
             {
-                Array.Copy(inputs, columns, inputs.Length);
+                inputs.CopyTo(columns);
             }
             else
             {
                 int column = 0;
-                for (int g = 0; g < plan.InputGroups.Count; g++)
+                foreach (InputGroup group in inputGroups)
                 {
-                    foreach (int position in plan.InputGroups[g].Positions)
+                    foreach (int position in group.Positions)
                     {
-                        columns[column++] = Activate(inputActivations[g], inputs[position]);
+                        columns[column++] = Activate(group.Activation, inputs[position]);
                     }
                 }
             }
 
-            for (int l = 0; l < plan.Levels.Count; l++)
+            foreach (Group[] level in levels)
             {
-                for (int g = 0; g < plan.Levels[l].Count; g++)
+                foreach (Group group in level)
                 {
-                    GraphPlan.NeuronGroup group = plan.Levels[l][g];
-                    int count = group.Count;
-                    for (int n = 0; n < count; n++)
-                    {
-                        float sum = group.Bias[n];
-                        for (int s = 0; s < group.Sources.Length; s++)
-                        {
-                            sum += columns[group.Sources[s]] * group.Weights[(s * count) + n];
-                        }
-
-                        columns[group.FirstColumn + n] = Activate(groupActivations[l][g], sum);
-                    }
+                    group.Run(columns, work);
                 }
             }
 
-            var outputs = plan.OutputColumns.Select(c => c < 0 ? (Quad)0 : columns[c]).ToArray();
-            if (plan.DivideBySum)
+            var outputs = new Quad[outputColumns.Length];
+            for (int i = 0; i < outputs.Length; i++) outputs[i] = outputColumns[i] < 0 ? 0 : columns[outputColumns[i]];
+
+            if (divideBySum)
             {
                 Quad total = 0;
                 foreach (Quad output in outputs) total += output;
@@ -91,9 +109,71 @@ namespace ANN.Net.Compact
             return outputs;
         }
 
-        private static Quad Activate(IActivationFunction function, Quad value)
+        private static float Activate(IActivationFunction function, float value)
         {
-            return function == null ? value : function.Activation(ref value);
+            Quad quad = value;
+            return function == null ? value : function.Activation(ref quad);
+        }
+
+        private sealed record InputGroup(int[] Positions, IActivationFunction Activation);
+
+        /// <summary>
+        /// Neurons of one level with the same activation: they read <see cref="Sources"/> and write the columns from
+        /// <see cref="FirstColumn"/> on
+        /// </summary>
+        private sealed class Group
+        {
+            private readonly IActivationFunction activation;
+            private readonly bool contiguous;
+
+            public Group(GraphPlan.NeuronGroup group, WeightPrecision precision)
+            {
+                Sources = group.Sources;
+                Bias = group.Bias;
+                FirstColumn = group.FirstColumn;
+                activation = Function(group.Activation);
+                Weights = Sources.Length == 0 ? null : WeightMatrix.Create(group.Weights, Sources.Length, group.Count, precision);
+                contiguous = Sources.Select((c, i) => c - i).Distinct().Count() <= 1;
+            }
+
+            public int[] Sources { get; }
+
+            public float[] Bias { get; }
+
+            public int FirstColumn { get; }
+
+            public WeightMatrix Weights { get; }
+
+            public void Run(Span<float> columns, Span<float> work)
+            {
+                Span<float> sums = columns.Slice(FirstColumn, Bias.Length);
+                Bias.CopyTo(sums);
+
+                if (Weights != null)
+                {
+                    ReadOnlySpan<float> input;
+                    if (contiguous)
+                    {
+                        input = columns.Slice(Sources[0], Sources.Length);
+                    }
+                    else
+                    {
+                        Span<float> gathered = work.Slice(0, Sources.Length);
+                        for (int s = 0; s < Sources.Length; s++) gathered[s] = columns[Sources[s]];
+                        input = gathered;
+                    }
+
+                    Weights.MultiplyAdd(input, sums);
+                }
+
+                if (activation == null) return;
+
+                for (int n = 0; n < sums.Length; n++)
+                {
+                    Quad value = sums[n];
+                    sums[n] = activation.Activation(ref value);
+                }
+            }
         }
     }
 }

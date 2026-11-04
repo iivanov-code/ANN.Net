@@ -24,9 +24,13 @@ namespace ANN.Net.Tests.Networks
                              .ToArray();
         }
 
-        internal static float[][] Run(byte[] model, float[][] samples, string inputName = "input")
+        /// <param name="optimize">False runs the graph as written; ONNX Runtime otherwise may replace dequantized int8
+        /// weights followed by a matrix product with an integer product that also quantizes the inputs</param>
+        internal static float[][] Run(byte[] model, float[][] samples, string inputName = "input", bool optimize = true)
         {
-            using var session = new InferenceSession(model);
+            using var sessionOptions = new SessionOptions();
+            if (!optimize) sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_DISABLE_ALL;
+            using var session = new InferenceSession(model, sessionOptions);
             int width = samples[0].Length;
             float[] data = samples.SelectMany(x => x).ToArray();
 

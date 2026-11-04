@@ -19,13 +19,16 @@ namespace ANN.Net.Compact
         private readonly IOperation[] operations;
         private readonly bool softMax;
 
-        public CompactConvolutionalNetwork(ConvolutionalNetwork network)
+        public CompactConvolutionalNetwork(ConvolutionalNetwork network, CompactOptions options = null)
         {
-            operations = Compile(network.Layers).ToArray();
+            options ??= new CompactOptions();
+            Precision = options.Precision;
+            operations = Compile(network.Layers, options).ToArray();
             softMax = network.OutputApplySoftMax;
             InputCount = network.InputChannels * network.InputHeight * network.InputWidth;
             OutputCount = network.OutputDimension;
             ParameterCount = operations.Sum(x => x.ParameterCount);
+            SizeInBytes = operations.Sum(x => x.SizeInBytes);
         }
 
         public int InputCount { get; }
@@ -33,6 +36,10 @@ namespace ANN.Net.Compact
         public int OutputCount { get; }
 
         public long ParameterCount { get; }
+
+        public WeightPrecision Precision { get; }
+
+        public long SizeInBytes { get; }
 
         /// <summary>
         /// Operations in order; batch normalizations folded into convolutions are gone
@@ -56,7 +63,7 @@ namespace ANN.Net.Compact
             return outputs;
         }
 
-        private static List<IOperation> Compile(IReadOnlyList<IConvolutionalLayer> layers)
+        private static List<IOperation> Compile(IReadOnlyList<IConvolutionalLayer> layers, CompactOptions options)
         {
             var operations = new List<IOperation>();
             for (int i = 0; i < layers.Count; i++)
@@ -65,12 +72,12 @@ namespace ANN.Net.Compact
                 {
                     case ConvolutionLayer convolution when convolution.ActivationType == ActivationTypes.Identity
                                                         && i + 1 < layers.Count && layers[i + 1] is BatchNormalizationLayer normalization:
-                        operations.Add(Convolution.Folded(convolution, normalization));
+                        operations.Add(Convolution.Folded(convolution, normalization, options.Precision));
                         i++;
                         break;
 
                     case ConvolutionLayer convolution:
-                        operations.Add(new Convolution(convolution));
+                        operations.Add(new Convolution(convolution, options.Precision));
                         break;
 
                     case BatchNormalizationLayer normalization:
@@ -86,11 +93,11 @@ namespace ANN.Net.Compact
                         break;
 
                     case ResidualBlockLayer residual:
-                        operations.Add(new Residual(Compile(residual.Main), Compile(residual.Shortcut), residual.ActivationType));
+                        operations.Add(new Residual(Compile(residual.Main, options), Compile(residual.Shortcut, options), residual.ActivationType));
                         break;
 
                     case DenseLayer dense:
-                        operations.Add(new Dense(dense));
+                        operations.Add(new Dense(dense, options.Precision));
                         break;
 
                     default:
@@ -120,6 +127,8 @@ namespace ANN.Net.Compact
         {
             long ParameterCount { get; }
 
+            long SizeInBytes { get; }
+
             /// <summary>
             /// Number of operations, counting those inside a residual block
             /// </summary>
@@ -128,20 +137,28 @@ namespace ANN.Net.Compact
             float[] Run(float[] input);
         }
 
+        /// <summary>
+        /// Convolution as one matrix product per output position: the input patch under the kernel (channels x kernel
+        /// height x kernel width values, 0 outside the image) times the weights of all filters
+        /// </summary>
         private sealed class Convolution : IOperation
         {
+            [ThreadStatic]
+            private static float[] buffer;
+
             private readonly Shape input, output;
             private readonly int kernelHeight, kernelWidth, stride, padding;
-            private readonly float[] weights;
+            private readonly WeightMatrix weights;
             private readonly float[] bias;
             private readonly IActivationFunction activation;
 
-            public Convolution(ConvolutionLayer layer)
-                : this(layer, Floats(layer.Weights), Floats(layer.Biases), layer.ActivationType)
+            public Convolution(ConvolutionLayer layer, WeightPrecision precision)
+                : this(layer, Floats(layer.Weights), Floats(layer.Biases), layer.ActivationType, precision)
             {
             }
 
-            private Convolution(ConvolutionLayer layer, float[] weights, float[] bias, ActivationTypes activationType)
+            /// <param name="filterWeights">Filter by filter, as the layer keeps them: [filter, channel, ky, kx]</param>
+            private Convolution(ConvolutionLayer layer, float[] filterWeights, float[] bias, ActivationTypes activationType, WeightPrecision precision)
             {
                 input = layer.InputShape;
                 output = layer.OutputShape;
@@ -149,15 +166,23 @@ namespace ANN.Net.Compact
                 kernelWidth = layer.KernelWidth;
                 stride = layer.Stride;
                 padding = layer.Padding;
-                this.weights = weights;
                 this.bias = bias;
                 activation = Function(activationType);
+
+                int filters = output.Channels, patch = filterWeights.Length / filters;
+                var transposed = new float[filterWeights.Length];
+                for (int f = 0; f < filters; f++)
+                {
+                    for (int k = 0; k < patch; k++) transposed[(k * filters) + f] = filterWeights[(f * patch) + k];
+                }
+
+                weights = WeightMatrix.Create(transposed, patch, filters, precision);
             }
 
             /// <summary>
             /// y = gamma * (conv(x) - mean) / sqrt(var + eps) + beta becomes one convolution with weights scaled per filter
             /// </summary>
-            public static Convolution Folded(ConvolutionLayer convolution, BatchNormalizationLayer normalization)
+            public static Convolution Folded(ConvolutionLayer convolution, BatchNormalizationLayer normalization, WeightPrecision precision)
             {
                 float[] weights = Floats(convolution.Weights);
                 float[] bias = new float[convolution.OutputShape.Channels];
@@ -172,10 +197,12 @@ namespace ANN.Net.Compact
                     bias[f] = (float)((shifted * scale) + (float)normalization.Beta.Values[f]);
                 }
 
-                return new Convolution(convolution, weights, bias, normalization.ActivationType);
+                return new Convolution(convolution, weights, bias, normalization.ActivationType, precision);
             }
 
-            public long ParameterCount => weights.Length + (bias?.Length ?? 0);
+            public long ParameterCount => weights.StoredValues + (bias?.Length ?? 0);
+
+            public long SizeInBytes => weights.SizeInBytes + (4L * (bias?.Length ?? 0));
 
             public int Count => 1;
 
@@ -183,43 +210,48 @@ namespace ANN.Net.Compact
             {
                 var result = new float[output.Size];
                 int channels = input.Channels, height = input.Height, width = input.Width;
-                int kernelSize = kernelHeight * kernelWidth;
+                int filters = output.Channels, positions = output.Height * output.Width;
+                int patchSize = weights.Rows;
 
-                for (int f = 0; f < output.Channels; f++)
+                if (buffer == null || buffer.Length < patchSize + filters) buffer = new float[patchSize + filters];
+                Span<float> patch = buffer.AsSpan(0, patchSize);
+                Span<float> sums = buffer.AsSpan(patchSize, filters);
+
+                for (int oy = 0; oy < output.Height; oy++)
                 {
-                    float filterBias = bias?[f] ?? 0;
-                    int filterStart = f * channels * kernelSize;
-
-                    for (int oy = 0; oy < output.Height; oy++)
+                    int top = (oy * stride) - padding;
+                    for (int ox = 0; ox < output.Width; ox++)
                     {
-                        int top = (oy * stride) - padding;
-                        for (int ox = 0; ox < output.Width; ox++)
+                        int left = (ox * stride) - padding;
+                        int k = 0;
+                        for (int c = 0; c < channels; c++)
                         {
-                            int left = (ox * stride) - padding;
-                            float sum = filterBias;
-
-                            for (int c = 0; c < channels; c++)
+                            int channelStart = c * height * width;
+                            for (int ky = 0; ky < kernelHeight; ky++)
                             {
-                                int channelStart = c * height * width;
-                                int kernelStart = filterStart + (c * kernelSize);
-
-                                for (int ky = 0; ky < kernelHeight; ky++)
+                                int iy = top + ky;
+                                if (iy < 0 || iy >= height)
                                 {
-                                    int iy = top + ky;
-                                    if (iy < 0 || iy >= height) continue;
+                                    patch.Slice(k, kernelWidth).Clear();
+                                    k += kernelWidth;
+                                    continue;
+                                }
 
-                                    int rowStart = channelStart + (iy * width);
-                                    int kernelRow = kernelStart + (ky * kernelWidth);
-                                    for (int kx = 0; kx < kernelWidth; kx++)
-                                    {
-                                        int ix = left + kx;
-                                        if (ix >= 0 && ix < width) sum += values[rowStart + ix] * weights[kernelRow + kx];
-                                    }
+                                int rowStart = channelStart + (iy * width);
+                                for (int kx = 0; kx < kernelWidth; kx++)
+                                {
+                                    int ix = left + kx;
+                                    patch[k++] = ix >= 0 && ix < width ? values[rowStart + ix] : 0;
                                 }
                             }
-
-                            result[output.Index(f, oy, ox)] = sum;
                         }
+
+                        if (bias == null) sums.Clear();
+                        else bias.CopyTo(sums);
+                        weights.MultiplyAdd(patch, sums);
+
+                        int position = (oy * output.Width) + ox;
+                        for (int f = 0; f < filters; f++) result[(f * positions) + position] = sums[f];
                     }
                 }
 
@@ -252,6 +284,8 @@ namespace ANN.Net.Compact
 
             public long ParameterCount => scale.Length + shift.Length;
 
+            public long SizeInBytes => 4L * ParameterCount;
+
             public int Count => 1;
 
             public float[] Run(float[] values)
@@ -274,6 +308,8 @@ namespace ANN.Net.Compact
             public Pooling(PoolingLayer layer) => this.layer = layer;
 
             public long ParameterCount => 0;
+
+            public long SizeInBytes => 0;
 
             public int Count => 1;
 
@@ -324,6 +360,8 @@ namespace ANN.Net.Compact
 
             public long ParameterCount => 0;
 
+            public long SizeInBytes => 0;
+
             public int Count => 1;
 
             public float[] Run(float[] values)
@@ -355,6 +393,8 @@ namespace ANN.Net.Compact
 
             public long ParameterCount => main.Concat(shortcut).Sum(x => x.ParameterCount);
 
+            public long SizeInBytes => main.Concat(shortcut).Sum(x => x.SizeInBytes);
+
             public int Count => 1 + main.Concat(shortcut).Sum(x => x.Count);
 
             public float[] Run(float[] values)
@@ -371,35 +411,27 @@ namespace ANN.Net.Compact
 
         private sealed class Dense : IOperation
         {
-            private readonly int inputs, outputs;
-            private readonly float[] weights, bias;
+            private readonly WeightMatrix weights;
+            private readonly float[] bias;
             private readonly IActivationFunction activation;
 
-            public Dense(DenseLayer layer)
+            public Dense(DenseLayer layer, WeightPrecision precision)
             {
-                inputs = layer.InputShape.Size;
-                outputs = layer.OutputShape.Size;
-                weights = Floats(layer.Weights);
+                weights = WeightMatrix.Create(Floats(layer.Weights), layer.InputShape.Size, layer.OutputShape.Size, precision);
                 bias = Floats(layer.Biases);
                 activation = Function(layer.ActivationType);
             }
 
-            public long ParameterCount => weights.Length + bias.Length;
+            public long ParameterCount => weights.StoredValues + bias.Length;
+
+            public long SizeInBytes => weights.SizeInBytes + (4L * bias.Length);
 
             public int Count => 1;
 
             public float[] Run(float[] values)
             {
                 var result = (float[])bias.Clone();
-                for (int i = 0; i < inputs; i++)
-                {
-                    float value = values[i];
-                    if (value == 0) continue;
-
-                    int row = i * outputs;
-                    for (int j = 0; j < outputs; j++) result[j] += value * weights[row + j];
-                }
-
+                weights.MultiplyAdd(values, result);
                 Activate(activation, result);
                 return result;
             }
