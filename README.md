@@ -296,6 +296,26 @@ Quad[] output = network.Propagate(0, 1);
 Quad loss = network.Backpropagate(1);
 ```
 
+### Matrix networks
+
+`NetworkFactory.BuildMatrixFFN` takes the same settings and builds the same network with one weight matrix per
+layer instead of neuron and synapse objects. With the same `Seed` it starts from the same weights and trains
+bit-identically, so it is a drop-in replacement whenever the hidden layers are fully connected layers of normal
+neurons. `NetworkFactory.ToMatrix` converts an existing network; the state of optimizers such as Adam starts afresh.
+Matrix networks save, load, export to ONNX and compact like the neuron network.
+
+```csharp
+IMatrixNetwork network = NetworkFactory.BuildMatrixFFN(settings, hiddenLayerSettings);
+foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.01f;
+```
+
+| 784-256-256-10 | Neuron network | Matrix network |
+|---|---|---|
+| Memory, plain gradient descent | 18.8 MB (70 B per weight) | 1.1 MB (4 B per weight) |
+| Memory, Adam | 33.7 MB (125 B per weight) | 3.2 MB (12 B per weight) |
+| One training step, Adam | 57 ms | 3.9 ms |
+| One propagation | 22 ms | 0.4 ms |
+
 ## Splitting a neuron network across processes
 
 `ANN.Net.Remote` runs the first layers of a neuron network in one process and

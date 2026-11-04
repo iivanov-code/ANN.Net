@@ -26,6 +26,11 @@ namespace ANN.Net.Serialization
 
         public bool OutputApplySoftMax { get; set; }
 
+        /// <summary>
+        /// Layered network saved from a matrix network (<c>NetworkFactory.BuildMatrixFFN</c>); it loads as one again
+        /// </summary>
+        public bool? Matrix { get; set; }
+
         public List<int> InputLayer { get; set; } = new List<int>();
 
         public List<List<int>> HiddenLayers { get; set; } = new List<List<int>>();

@@ -133,6 +133,9 @@ namespace ANN.Net
                         Convolutional = ConvolutionalSerializer.ToDocument(convolutional)
                     };
 
+                case Matrix.MatrixNetwork matrix:
+                    return MatrixSerializer.ToDocument(matrix, FormatName, FormatVersion);
+
                 case Network n:
                     layered = n;
                     kind = NetworkKind.Layered;
@@ -399,7 +402,7 @@ namespace ANN.Net
             switch (document.Kind)
             {
                 case NetworkKind.Layered:
-                    return network;
+                    return document.Matrix == true ? Matrix.MatrixNetwork.FromNetwork(network) : network;
 
                 case NetworkKind.Graph:
                     var connections = new Dictionary<uint, ActiveSynapse>();

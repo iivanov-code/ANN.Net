@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Interfaces;
@@ -60,6 +61,34 @@ namespace ANN.Net
                                                            !settings.OutputApplySoftMax,
                                                            ffn.Optimizers);
             return ffn;
+        }
+
+        /// <summary>
+        /// Builds the fully connected network <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/> builds,
+        /// with one weight matrix per layer instead of neuron and synapse objects. With the same settings and
+        /// <see cref="NetworkSettings.Seed"/> it starts from the same weights and computes and trains bit-identically,
+        /// using a fraction of the memory and time. Hidden layers must be fully connected layers of normal neurons
+        /// </summary>
+        public static IMatrixNetwork BuildMatrixFFN(NetworkSettings settings, params RecurrentLayerSettings[] hiddenSettings)
+        {
+            return Matrix.MatrixNetwork.Build(settings, hiddenSettings);
+        }
+
+        /// <summary>
+        /// Converts a fully connected network of <see cref="BuildFFN(NetworkSettings, RecurrentLayerSettings)"/> into a
+        /// matrix network with the same weights, optimizer types and learning rates. The state of optimizers such as Adam
+        /// starts afresh
+        /// </summary>
+        public static IMatrixNetwork ToMatrix(INetwork network)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+
+            return network switch
+            {
+                IMatrixNetwork matrix => matrix,
+                Network layered => Matrix.MatrixNetwork.FromNetwork(layered),
+                _ => throw new NotSupportedException($"A {network.GetType().Name} cannot be converted to a matrix network")
+            };
         }
 
         /// <summary>
