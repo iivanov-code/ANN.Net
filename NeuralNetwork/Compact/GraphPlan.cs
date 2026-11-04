@@ -61,6 +61,21 @@ namespace ANN.Net.Compact
             public int Count => Bias.Length;
         }
 
+        /// <summary>
+        /// The same inputs and outputs with other levels
+        /// </summary>
+        internal GraphPlan With(IReadOnlyList<IReadOnlyList<NeuronGroup>> levels, int width, int[] outputColumns) => new GraphPlan
+        {
+            InputCount = InputCount,
+            InputMinimum = InputMinimum,
+            InputRange = InputRange,
+            InputGroups = InputGroups,
+            Levels = levels,
+            Width = width,
+            OutputColumns = outputColumns,
+            DivideBySum = DivideBySum
+        };
+
         public static GraphPlan Create(NetworkDocument document)
         {
             return new Planner(document).Plan();

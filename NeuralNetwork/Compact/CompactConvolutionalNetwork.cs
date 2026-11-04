@@ -24,6 +24,11 @@ namespace ANN.Net.Compact
             options ??= new CompactOptions();
             Precision = options.Precision;
             operations = Compile(network.Layers, options).ToArray();
+
+            // weights are pruned and stored once the threshold over all of them is known
+            float threshold = options.Threshold(operations.SelectMany(x => x.Weights));
+            foreach (IOperation operation in operations) operation.Seal(threshold, options.Precision);
+
             softMax = network.OutputApplySoftMax;
             InputCount = network.InputChannels * network.InputHeight * network.InputWidth;
             OutputCount = network.OutputDimension;
@@ -72,12 +77,12 @@ namespace ANN.Net.Compact
                 {
                     case ConvolutionLayer convolution when convolution.ActivationType == ActivationTypes.Identity
                                                         && i + 1 < layers.Count && layers[i + 1] is BatchNormalizationLayer normalization:
-                        operations.Add(Convolution.Folded(convolution, normalization, options.Precision));
+                        operations.Add(Convolution.Folded(convolution, normalization));
                         i++;
                         break;
 
                     case ConvolutionLayer convolution:
-                        operations.Add(new Convolution(convolution, options.Precision));
+                        operations.Add(new Convolution(convolution));
                         break;
 
                     case BatchNormalizationLayer normalization:
@@ -97,7 +102,7 @@ namespace ANN.Net.Compact
                         break;
 
                     case DenseLayer dense:
-                        operations.Add(new Dense(dense, options.Precision));
+                        operations.Add(new Dense(dense));
                         break;
 
                     default:
@@ -109,6 +114,18 @@ namespace ANN.Net.Compact
         }
 
         private static float[] Floats(Parameters parameters) => parameters?.Values.Select(x => (float)x).ToArray();
+
+        private static float[] Pruned(float[] weights, float threshold)
+        {
+            if (threshold <= 0) return weights;
+
+            for (int i = 0; i < weights.Length; i++)
+            {
+                if (Math.Abs(weights[i]) < threshold) weights[i] = 0;
+            }
+
+            return weights;
+        }
 
         private static void Activate(IActivationFunction function, float[] values)
         {
@@ -125,6 +142,18 @@ namespace ANN.Net.Compact
 
         private interface IOperation
         {
+            /// <summary>
+            /// Weights that are not stored yet
+            /// </summary>
+            IEnumerable<float[]> Weights => Array.Empty<float[]>();
+
+            /// <summary>
+            /// Removes the weights below the threshold and stores the others
+            /// </summary>
+            void Seal(float threshold, WeightPrecision precision)
+            {
+            }
+
             long ParameterCount { get; }
 
             long SizeInBytes { get; }
@@ -148,17 +177,18 @@ namespace ANN.Net.Compact
 
             private readonly Shape input, output;
             private readonly int kernelHeight, kernelWidth, stride, padding;
-            private readonly WeightMatrix weights;
             private readonly float[] bias;
             private readonly IActivationFunction activation;
+            private float[] transposed;
+            private WeightMatrix weights;
 
-            public Convolution(ConvolutionLayer layer, WeightPrecision precision)
-                : this(layer, Floats(layer.Weights), Floats(layer.Biases), layer.ActivationType, precision)
+            public Convolution(ConvolutionLayer layer)
+                : this(layer, Floats(layer.Weights), Floats(layer.Biases), layer.ActivationType)
             {
             }
 
             /// <param name="filterWeights">Filter by filter, as the layer keeps them: [filter, channel, ky, kx]</param>
-            private Convolution(ConvolutionLayer layer, float[] filterWeights, float[] bias, ActivationTypes activationType, WeightPrecision precision)
+            private Convolution(ConvolutionLayer layer, float[] filterWeights, float[] bias, ActivationTypes activationType)
             {
                 input = layer.InputShape;
                 output = layer.OutputShape;
@@ -170,19 +200,25 @@ namespace ANN.Net.Compact
                 activation = Function(activationType);
 
                 int filters = output.Channels, patch = filterWeights.Length / filters;
-                var transposed = new float[filterWeights.Length];
+                transposed = new float[filterWeights.Length];
                 for (int f = 0; f < filters; f++)
                 {
                     for (int k = 0; k < patch; k++) transposed[(k * filters) + f] = filterWeights[(f * patch) + k];
                 }
+            }
 
-                weights = WeightMatrix.Create(transposed, patch, filters, precision);
+            public IEnumerable<float[]> Weights => new[] { transposed };
+
+            public void Seal(float threshold, WeightPrecision precision)
+            {
+                weights = WeightMatrix.Create(Pruned(transposed, threshold), transposed.Length / output.Channels, output.Channels, precision);
+                transposed = null;
             }
 
             /// <summary>
             /// y = gamma * (conv(x) - mean) / sqrt(var + eps) + beta becomes one convolution with weights scaled per filter
             /// </summary>
-            public static Convolution Folded(ConvolutionLayer convolution, BatchNormalizationLayer normalization, WeightPrecision precision)
+            public static Convolution Folded(ConvolutionLayer convolution, BatchNormalizationLayer normalization)
             {
                 float[] weights = Floats(convolution.Weights);
                 float[] bias = new float[convolution.OutputShape.Channels];
@@ -197,7 +233,7 @@ namespace ANN.Net.Compact
                     bias[f] = (float)((shifted * scale) + (float)normalization.Beta.Values[f]);
                 }
 
-                return new Convolution(convolution, weights, bias, normalization.ActivationType, precision);
+                return new Convolution(convolution, weights, bias, normalization.ActivationType);
             }
 
             public long ParameterCount => weights.StoredValues + (bias?.Length ?? 0);
@@ -391,6 +427,13 @@ namespace ANN.Net.Compact
                 activation = Function(activationType);
             }
 
+            public IEnumerable<float[]> Weights => main.Concat(shortcut).SelectMany(x => x.Weights);
+
+            public void Seal(float threshold, WeightPrecision precision)
+            {
+                foreach (IOperation operation in main.Concat(shortcut)) operation.Seal(threshold, precision);
+            }
+
             public long ParameterCount => main.Concat(shortcut).Sum(x => x.ParameterCount);
 
             public long SizeInBytes => main.Concat(shortcut).Sum(x => x.SizeInBytes);
@@ -411,15 +454,27 @@ namespace ANN.Net.Compact
 
         private sealed class Dense : IOperation
         {
-            private readonly WeightMatrix weights;
+            private readonly int inputs, outputs;
             private readonly float[] bias;
             private readonly IActivationFunction activation;
+            private float[] pending;
+            private WeightMatrix weights;
 
-            public Dense(DenseLayer layer, WeightPrecision precision)
+            public Dense(DenseLayer layer)
             {
-                weights = WeightMatrix.Create(Floats(layer.Weights), layer.InputShape.Size, layer.OutputShape.Size, precision);
+                inputs = layer.InputShape.Size;
+                outputs = layer.OutputShape.Size;
+                pending = Floats(layer.Weights);
                 bias = Floats(layer.Biases);
                 activation = Function(layer.ActivationType);
+            }
+
+            public IEnumerable<float[]> Weights => new[] { pending };
+
+            public void Seal(float threshold, WeightPrecision precision)
+            {
+                weights = WeightMatrix.Create(Pruned(pending, threshold), inputs, outputs, precision);
+                pending = null;
             }
 
             public long ParameterCount => weights.StoredValues + bias.Length;

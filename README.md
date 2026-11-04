@@ -61,6 +61,29 @@ weights to ONNX (float16 initializers cast to float, int8 initializers with `Deq
 graph computes what the compact network of that precision computes. ONNX Runtime may then also quantize the inputs
 of the matrix products it fuses with `DequantizeLinear`, which changes the outputs by a little more rounding.
 
+### Pruning
+
+`CompactOptions.PruneThreshold` removes the weights below a magnitude, `PruneFraction` the given share of the
+smallest weights across the whole network. In neuron graphs a neuron left without inputs computes a constant that is
+added to the biases of the neurons it feeds, and neurons that feed nothing any more are removed, so whole branches
+disappear. Matrices that end up mostly zero are stored as their non-zero weights with column indexes (6 bytes per
+float weight, 3 per int8 weight), which pays off once less than about a third (int8: a sixth) of them remain.
+Biases are never pruned.
+
+```csharp
+var options = new CompactOptions { PruneFraction = 0.8, Precision = WeightPrecision.Int8 };
+ICompactNetwork pruned = NetworkCompactor.Compact(network, options);
+```
+
+| Trained 10-48-48-4 classifier | Accuracy | Size |
+|---|---|---|
+| Not pruned | 98.4 % | 12,744 bytes |
+| 70 % of the weights pruned | 98.8 % | 8,212 bytes (int8: 2,863) |
+| 80 % pruned | 97.9 % | 6,552 bytes (int8: 2,358) |
+| 90 % pruned | 26.8 % | 2,378 bytes |
+
+Pruning does not retrain the network, so how much it tolerates depends on the network; check the accuracy.
+
 Neuron graphs become a few weight matrices evaluated level by level (the same plan the ONNX export uses), and
 batch normalizations that follow a convolution are folded into it. Convolutions run as one matrix product per
 output position over all filters, with SIMD. Convolutional networks compute as with

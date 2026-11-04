@@ -28,6 +28,9 @@ namespace ANN.Net.Compact
             options ??= new CompactOptions();
             Precision = options.Precision;
 
+            float threshold = options.Threshold(GraphPruner.Weights(plan));
+            if (threshold > 0) plan = GraphPruner.Prune(plan, threshold);
+
             inputCount = plan.InputCount;
             inputMinimum = plan.InputMinimum;
             inputRange = plan.InputRange;
