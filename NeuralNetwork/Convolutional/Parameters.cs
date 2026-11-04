@@ -23,6 +23,15 @@ namespace ANN.Net.Convolutional
             Optimizer = ArrayOptimizer.Create(optimizerType, count, optimizers);
         }
 
+        /// <summary>
+        /// The values of <paramref name="master"/> with a collector in place of its optimizer
+        /// </summary>
+        public Parameters(Parameters master, ReplicaContext context)
+        {
+            Values = master.Values;
+            Optimizer = context.Link(master.Optimizer, master.Values);
+        }
+
         public Quad[] Values { get; }
 
         public OptimizerTypes OptimizerType => Optimizer.Type;

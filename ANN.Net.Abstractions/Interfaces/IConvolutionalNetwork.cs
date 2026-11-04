@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Abstractions.Settings;
 
 namespace ANN.Net.Abstractions.Interfaces
 {
@@ -41,5 +42,13 @@ namespace ANN.Net.Abstractions.Interfaces
         /// running averages. Set to false for inference, where the running averages are used, as in an ONNX export
         /// </summary>
         bool Training { get; set; }
+
+        /// <summary>
+        /// One step of mini-batch gradient descent on several threads: the gradients of all images are computed with
+        /// the weights before the step, averaged, and every weight is updated once. Returns the mean loss. The result
+        /// does not depend on the number of processors (see <see cref="BatchOptions"/>), and a batch of one image trains
+        /// exactly like Propagate and Backpropagate
+        /// </summary>
+        Quad TrainBatch(IReadOnlyList<Quad[]> inputs, IReadOnlyList<Quad[]> targets, BatchOptions options = null);
     }
 }

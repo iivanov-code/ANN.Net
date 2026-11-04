@@ -7,6 +7,7 @@ using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Transformers;
 using ANN.Net.Utils;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Convolutional
 {
@@ -89,6 +90,36 @@ namespace ANN.Net.Convolutional
             layers.Add(new DenseLayer(shape, settings.OutputDimension, outputActivation, settings.OptimizerType, settings.InitializationType, Optimizers));
             Layers = layers;
             Errors = new Quad[settings.OutputDimension];
+        }
+
+        private ConvolutionalNetwork(ConvolutionalNetwork master, ReplicaContext context)
+        {
+            Settings = master.Settings;
+            mode = master.mode;
+            Optimizers = new List<LearningRateOptimizer>();
+            Layers = master.Layers.Select(x => x.Replicate(context)).ToList();
+            Errors = new Quad[Settings.OutputDimension];
+        }
+
+        private BatchTrainer<ConvolutionalNetwork> trainer;
+
+        /// <summary>
+        /// One step of mini-batch gradient descent on several threads; see <see cref="IConvolutionalNetwork.TrainBatch"/>.
+        /// Batch normalization normalizes every image by its own statistics, as when training image by image, and its
+        /// running averages advance image by image in batch order
+        /// </summary>
+        public Quad TrainBatch(IReadOnlyList<Quad[]> inputs, IReadOnlyList<Quad[]> targets, BatchOptions options = null)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+            ArgumentNullException.ThrowIfNull(targets);
+            if (inputs.Count != targets.Count) throw new ArgumentException("Every input needs a target", nameof(targets));
+
+            trainer ??= new BatchTrainer<ConvolutionalNetwork>(context => new ConvolutionalNetwork(this, context));
+            return trainer.Train(inputs.Count, options, (replica, i) =>
+            {
+                replica.Propagate(inputs[i]);
+                return replica.Backpropagate(targets[i]);
+            });
         }
 
         internal ConvolutionalNetworkSettings Settings { get; }

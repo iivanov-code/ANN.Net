@@ -24,6 +24,7 @@ namespace ANN.Net.Optimizers
         private readonly Quad[] m;
         private readonly Quad[] v;
         private readonly Quad[] vHat;
+        private readonly Quad[] collected;
         private uint t = 1;
         private Quad correction1, correction2;
 
@@ -58,6 +59,42 @@ namespace ANN.Net.Optimizers
             }
 
             Prepare();
+        }
+
+        /// <summary>
+        /// Optimizer of a training replica: it adds up the gradients it is given and leaves the values unchanged, so
+        /// that <see cref="ApplyAverage"/> can update the values of <paramref name="master"/> once for a whole batch
+        /// </summary>
+        private ArrayOptimizer(ArrayOptimizer master)
+        {
+            Type = master.Type;
+            Length = master.Length;
+            collected = new Quad[Length];
+        }
+
+        public static ArrayOptimizer Collector(ArrayOptimizer master) => new ArrayOptimizer(master ?? throw new ArgumentNullException(nameof(master)));
+
+        public bool IsCollector => collected != null;
+
+        public void ClearCollected()
+        {
+            if (collected != null) Array.Clear(collected);
+        }
+
+        /// <summary>
+        /// Updates <paramref name="values"/> with the mean of the gradients the collectors added up, summed in the order
+        /// of the collectors, as one step of this optimizer
+        /// </summary>
+        public void ApplyAverage(Span<Quad> values, IReadOnlyList<ArrayOptimizer> collectors, int samples)
+        {
+            for (int i = 0; i < Length; i++)
+            {
+                Quad sum = collectors[0].collected[i];
+                for (int c = 1; c < collectors.Count; c++) sum += collectors[c].collected[i];
+                values[i] = Calculate(i, sum / samples, values[i]);
+            }
+
+            Advance();
         }
 
         public OptimizerTypes Type { get; }
@@ -97,6 +134,12 @@ namespace ANN.Net.Optimizers
         /// </summary>
         public Quad Calculate(int index, Quad gradient, Quad weight)
         {
+            if (collected != null)
+            {
+                collected[index] += gradient;
+                return weight;
+            }
+
             switch (Type)
             {
                 case OptimizerTypes.Normal:
@@ -156,6 +199,8 @@ namespace ANN.Net.Optimizers
         /// </summary>
         public void Advance()
         {
+            if (collected != null) return;
+
             t++;
             Prepare();
         }

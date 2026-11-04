@@ -35,6 +35,25 @@ namespace ANN.Net.Matrix
             BiasOptimizer = bias ? ArrayOptimizer.Create(biasOptimizer, outputs, optimizers) : null;
         }
 
+        /// <summary>
+        /// Training replica: the same weights, its own values of the last propagation, and optimizers that only collect
+        /// gradients
+        /// </summary>
+        private MatrixLayer(MatrixLayer master, ReplicaContext context)
+        {
+            Inputs = master.Inputs;
+            Outputs = master.Outputs;
+            Activation = master.Activation;
+            Activate = master.Activate;
+            function = NetworkUtils.GetActivation(master.Activation);
+            Weights = master.Weights;
+            Bias = master.Bias;
+            WeightOptimizer = context.Link(master.WeightOptimizer, master.Weights);
+            BiasOptimizer = master.Bias == null ? null : context.Link(master.BiasOptimizer, master.Bias);
+        }
+
+        public MatrixLayer Replicate(ReplicaContext context) => new MatrixLayer(this, context);
+
         public int Inputs { get; }
 
         public int Outputs { get; }

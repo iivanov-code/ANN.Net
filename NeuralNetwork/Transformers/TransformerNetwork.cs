@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
+using ANN.Net.Optimizers;
+using System.Linq;
 
 namespace ANN.Net.Transformers
 {
@@ -60,6 +62,36 @@ namespace ANN.Net.Transformers
                                                          settings.OptimizerType,
                                                          settings.InitializationType,
                                                          this.Optimizers);
+        }
+
+        private TransformerNetwork(TransformerNetwork master, ReplicaContext context)
+        {
+            this.settings = master.settings;
+            this.Optimizers = new List<LearningRateOptimizer>();
+            this.inputProjection = master.inputProjection.Replicate(context);
+            this.positionalEncodings = master.positionalEncodings;
+            this.blocks = master.blocks.Select(x => x.Replicate(context)).ToList();
+            this.outputNormalization = master.outputNormalization.Replicate(context);
+            this.outputProjection = master.outputProjection.Replicate(context);
+        }
+
+        private BatchTrainer<TransformerNetwork> trainer;
+
+        /// <summary>
+        /// One step of mini-batch gradient descent on several threads; see <see cref="ISequenceNetwork.TrainBatch"/>
+        /// </summary>
+        public Quad TrainBatch(IReadOnlyList<Quad[][]> sequences, IReadOnlyList<Quad[][]> targets, BatchOptions options = null)
+        {
+            if (sequences == null) throw new ArgumentNullException(nameof(sequences));
+            if (targets == null) throw new ArgumentNullException(nameof(targets));
+            if (sequences.Count != targets.Count) throw new ArgumentException("Every sequence needs targets", nameof(targets));
+
+            this.trainer ??= new BatchTrainer<TransformerNetwork>(context => new TransformerNetwork(this, context));
+            return this.trainer.Train(sequences.Count, options, (replica, i) =>
+            {
+                replica.Propagate(sequences[i]);
+                return replica.Backpropagate(targets[i]);
+            });
         }
 
         internal TransformerSettings Settings => this.settings;

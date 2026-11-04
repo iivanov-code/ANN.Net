@@ -14,5 +14,11 @@
         Quad[] Propagate(Quad[] input);
 
         Quad[] Backpropagate(Quad[] outputGradient);
+
+        /// <summary>
+        /// Training replica for batches on several threads: the same parameters, its own per-sample state, and
+        /// optimizers that only collect gradients
+        /// </summary>
+        IConvolutionalLayer Replicate(Optimizers.ReplicaContext context);
     }
 }

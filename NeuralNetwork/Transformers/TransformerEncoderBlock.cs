@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Transformers
 {
@@ -32,6 +33,16 @@ namespace ANN.Net.Transformers
             this.feedForwardNormalization = new LayerNormalization(modelDimension, optimizerType, optimizers);
             this.feedForward = CreateFeedForward(feedForwardType, modelDimension, feedForwardDimension, feedForwardActivationType, optimizerType, initializationType, optimizers);
         }
+
+        private TransformerEncoderBlock(TransformerEncoderBlock master, ReplicaContext context)
+        {
+            this.attentionNormalization = master.attentionNormalization.Replicate(context);
+            this.attention = master.attention.Replicate(context);
+            this.feedForwardNormalization = master.feedForwardNormalization.Replicate(context);
+            this.feedForward = master.feedForward.Replicate(context);
+        }
+
+        public TransformerEncoderBlock Replicate(ReplicaContext context) => new TransformerEncoderBlock(this, context);
 
         public MultiHeadAttention Attention => this.attention;
 

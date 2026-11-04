@@ -142,6 +142,31 @@ Recurrent networks cannot be compacted: `BuildRNN` and `BuildCellRNN` return nul
 implemented, and layers with `NeuronType.RNN` connect the neurons of a layer to each other within one propagation
 instead of to the previous time step, so they keep no state between inputs.
 
+## Training in batches on all processors
+
+Matrix, convolutional and transformer networks train mini-batches on all processors with `TrainBatch`:
+
+```csharp
+Quad loss = network.TrainBatch(inputs, targets);                                    // mean loss of the batch
+loss = network.TrainBatch(inputs, targets, new BatchOptions { ChunkSize = 4, MaxDegreeOfParallelism = 2 });
+```
+
+The batch is split into chunks of `ChunkSize` samples (8 by default). Every chunk runs on one thread on a replica of
+the network that shares its weights but keeps its own per-sample state, and whose optimizers only add up gradients.
+The weights do not change during the batch; afterwards every weight is updated once with the mean gradient, the
+chunks added in a fixed order. The result therefore depends on the chunk size but not on the number of processors:
+the same training gives the same network on every machine. A batch of one sample trains exactly like `Propagate`
+and `Backpropagate`. Batch normalization normalizes every image by its own statistics, as when training image by
+image, and its running averages advance image by image in batch order. Every chunk keeps a copy of the gradients, so a
+batch needs about (batch size / chunk size) x 4 bytes per parameter more memory; the replicas are kept for the next
+batch. Transformers with neuron feed-forward networks cannot train in batches.
+
+| 4 cores, Adam | One sample at a time | `TrainBatch` | |
+|---|---|---|---|
+| Matrix 784-256-256-10, batch 64 | 2,485 µs per sample | 720 µs | 3.5× |
+| Small ResNet, 3 × 32 × 32, batch 32 | 119 ms per image | 34 ms | 3.5× |
+| Transformer d = 64, 32 tokens, batch 32 | 15.6 ms per sequence | 4.2 ms | 3.7× |
+
 ## How many parameters fit in memory
 
 Measured bytes per weight (for a 256 M parameter matrix network the measurement matches to two decimals) and what

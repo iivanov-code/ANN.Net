@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Convolutional
 {
@@ -50,6 +51,19 @@ namespace ANN.Net.Convolutional
             if (shortcutShape != OutputShape)
                 throw new ArgumentException($"The shortcut gives {shortcutShape} but the block gives {OutputShape}");
         }
+
+        private ResidualBlockLayer(ResidualBlockLayer master, ReplicaContext context)
+        {
+            Main = master.Main.Select(x => x.Replicate(context)).ToArray();
+            Shortcut = master.Shortcut.Select(x => x.Replicate(context)).ToArray();
+            InputShape = master.InputShape;
+            OutputShape = master.OutputShape;
+            Filters = master.Filters;
+            Stride = master.Stride;
+            activation = new Activation(master.ActivationType);
+        }
+
+        public IConvolutionalLayer Replicate(ReplicaContext context) => new ResidualBlockLayer(this, context);
 
         public Shape InputShape { get; }
 

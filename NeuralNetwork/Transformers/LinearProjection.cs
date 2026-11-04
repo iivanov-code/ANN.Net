@@ -50,6 +50,16 @@ namespace ANN.Net.Transformers
             }
         }
 
+        private LinearProjection(LinearProjection master, ReplicaContext context)
+        {
+            this.weights = master.weights;
+            this.biases = master.biases;
+            this.weightOptimizer = context.Link(master.weightOptimizer, master.weights);
+            this.biasOptimizer = context.Link(master.biasOptimizer, master.biases);
+        }
+
+        public LinearProjection Replicate(ReplicaContext context) => new LinearProjection(this, context);
+
         public int InputsCount => this.weights.GetLength(0);
 
         public int OutputsCount => this.weights.GetLength(1);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Transformers;
+using ANN.Net.Optimizers;
 
 namespace ANN.Net.Convolutional
 {
@@ -44,6 +45,21 @@ namespace ANN.Net.Convolutional
             Weights = new Parameters(filters * fanIn, optimizerType, optimizers, () => TransformerUtils.InitialWeight(initializationType, fanIn, fanOut));
             Biases = useBias ? new Parameters(filters, optimizerType, optimizers, () => 0) : null;
         }
+
+        private ConvolutionLayer(ConvolutionLayer master, ReplicaContext context)
+        {
+            InputShape = master.InputShape;
+            OutputShape = master.OutputShape;
+            KernelHeight = master.KernelHeight;
+            KernelWidth = master.KernelWidth;
+            Stride = master.Stride;
+            Padding = master.Padding;
+            activation = new Activation(master.ActivationType);
+            Weights = new Parameters(master.Weights, context);
+            Biases = master.Biases == null ? null : new Parameters(master.Biases, context);
+        }
+
+        public IConvolutionalLayer Replicate(ReplicaContext context) => new ConvolutionLayer(this, context);
 
         public Shape InputShape { get; }
 

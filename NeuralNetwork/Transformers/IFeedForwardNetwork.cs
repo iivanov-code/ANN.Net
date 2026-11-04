@@ -12,5 +12,10 @@
         /// </summary>
         /// <returns>Gradient with respect to the inputs of the last propagation</returns>
         Quad[][] Backpropagate(Quad[][] outputGradients);
+
+        /// <summary>
+        /// Training replica sharing the weights; see <see cref="Optimizers.ReplicaContext"/>
+        /// </summary>
+        IFeedForwardNetwork Replicate(Optimizers.ReplicaContext context);
     }
 }

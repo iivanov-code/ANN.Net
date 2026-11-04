@@ -8,6 +8,7 @@ using ANN.Net.Abstractions.Models;
 using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Neurons;
+using ANN.Net.Optimizers;
 using ANN.Net.Utils;
 
 namespace ANN.Net.Matrix
@@ -26,6 +27,7 @@ namespace ANN.Net.Matrix
         private readonly IActivationFunction inputFunction;
         private Quad[] inputPreActivations;
         private Quad[] inputValues;
+        private BatchTrainer<MatrixNetwork> trainer;
 
         internal MatrixNetwork(int inputCount, bool inputBias, ActivationTypes inputActivation, bool shouldNormalize, IReadOnlyList<Tuple<Quad, Quad>> minMax,
                                bool softMax, LossFunctionTypes lossType)
@@ -203,6 +205,32 @@ namespace ANN.Net.Matrix
             Errors = errors;
             BackpropagateLayers(errors);
             return lossFunction.CalculateLoss(results);
+        }
+
+        /// <summary>
+        /// One step of mini-batch gradient descent: the gradients of all samples, computed on several threads with the
+        /// weights before the step, are averaged and every weight is updated once. Returns the mean loss. A batch of one
+        /// sample trains exactly like Propagate and Backpropagate
+        /// </summary>
+        public Quad TrainBatch(IReadOnlyList<Quad[]> inputs, IReadOnlyList<Quad[]> targets, BatchOptions options = null)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+            ArgumentNullException.ThrowIfNull(targets);
+            if (inputs.Count != targets.Count) throw new ArgumentException("Every input needs a target", nameof(targets));
+
+            trainer ??= new BatchTrainer<MatrixNetwork>(Replicate);
+            return trainer.Train(inputs.Count, options, (replica, i) =>
+            {
+                replica.Propagate(inputs[i]);
+                return replica.Backpropagate(targets[i]);
+            });
+        }
+
+        private MatrixNetwork Replicate(ReplicaContext context)
+        {
+            var replica = new MatrixNetwork(InputCount, InputBias, InputActivation, ShouldNormalize, MinMaxValues, OutputApplySoftMax, LossType);
+            replica.Layers.AddRange(Layers.Select(x => x.Replicate(context)));
+            return replica;
         }
 
         public int InputSize => InputCount;

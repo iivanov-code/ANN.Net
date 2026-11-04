@@ -30,6 +30,8 @@ namespace ANN.Net.Convolutional
             Padding = padding;
         }
 
+        public IConvolutionalLayer Replicate(Optimizers.ReplicaContext context) => new PoolingLayer(InputShape, Type, Size, Stride, Padding);
+
         public Shape InputShape { get; }
 
         public Shape OutputShape { get; }

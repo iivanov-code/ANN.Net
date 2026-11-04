@@ -19,6 +19,16 @@ namespace ANN.Net.Abstractions.Interfaces
         /// </summary>
         Quad Backpropagate(Quad[][] targets);
 
+        /// <summary>
+        /// One step of mini-batch gradient descent on several threads: the gradients of all sequences are computed with
+        /// the weights before the step, averaged, and every weight is updated once. Returns the mean error. The result
+        /// does not depend on the number of processors (see <see cref="Settings.BatchOptions"/>), and a batch of one
+        /// sequence trains exactly like Propagate and Backpropagate.
+        /// Networks that cannot train in batches throw <see cref="System.NotSupportedException"/>
+        /// </summary>
+        Quad TrainBatch(IReadOnlyList<Quad[][]> sequences, IReadOnlyList<Quad[][]> targets, Settings.BatchOptions options = null) =>
+            throw new System.NotSupportedException($"A {GetType().Name} cannot train in batches");
+
         Quad[][] Values { get; }
 
         Quad[][] Errors { get; }

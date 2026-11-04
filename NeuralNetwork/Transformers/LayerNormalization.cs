@@ -40,6 +40,16 @@ namespace ANN.Net.Transformers
             }
         }
 
+        private LayerNormalization(LayerNormalization master, ReplicaContext context)
+        {
+            this.gains = master.gains;
+            this.offsets = master.offsets;
+            this.gainOptimizer = context.Link(master.gainOptimizer, master.gains);
+            this.offsetOptimizer = context.Link(master.offsetOptimizer, master.offsets);
+        }
+
+        public LayerNormalization Replicate(ReplicaContext context) => new LayerNormalization(this, context);
+
         public int Dimension => this.gains.Length;
 
         public Quad[] Gains => this.gains;

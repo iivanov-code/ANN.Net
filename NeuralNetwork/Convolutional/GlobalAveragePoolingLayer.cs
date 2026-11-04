@@ -14,6 +14,8 @@ namespace ANN.Net.Convolutional
             OutputShape = new Shape(inputShape.Channels, 1, 1);
         }
 
+        public IConvolutionalLayer Replicate(Optimizers.ReplicaContext context) => new GlobalAveragePoolingLayer(InputShape);
+
         public Shape InputShape { get; }
 
         public Shape OutputShape { get; }
