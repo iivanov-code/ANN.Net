@@ -75,7 +75,7 @@ namespace ANN.Net.Tests.Convolutional
             Assert.All(blocks.SelectMany(x => x.Main.Concat(x.Shortcut)).OfType<ConvolutionLayer>(), x => Assert.Null(x.Biases));
 
             // torchvision.models.resnet18(): sum(p.numel() for p in model.parameters()) == 11_689_512
-            Assert.Equal(11_689_512, network.Optimizers.Count);
+            Assert.Equal(11_689_512, network.ParameterCount);
         }
 
         private static Quad[] Image(Random random, int size) => Enumerable.Range(0, size).Select(_ => (Quad)((random.NextDouble() * 2) - 1)).ToArray();

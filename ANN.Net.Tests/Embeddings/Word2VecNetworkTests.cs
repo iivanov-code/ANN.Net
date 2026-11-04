@@ -282,11 +282,12 @@ namespace ANN.Net.Tests.Embeddings
         }
 
         [Fact]
-        public void Build_RegistersOneOptimizerPerWeight()
+        public void Build_RegistersOneOptimizerPerEmbeddingRow()
         {
             IEmbeddingNetwork network = CreateNetwork(CreateSettings(), 0);
 
-            Assert.Equal(2 * VOCABULARY_SIZE * 8, network.Optimizers.Count);
+            // every row of the input and of the output embeddings is updated as a whole, so it has one optimizer
+            Assert.Equal(2 * VOCABULARY_SIZE, network.Optimizers.Count);
         }
 
         [Fact]

@@ -98,10 +98,13 @@ namespace ANN.Net.Serialization
         public float[] Values { get; set; }
 
         /// <summary>
-        /// Learning rate shared by every value, or null when <see cref="LearningRates"/> holds one per value
+        /// Learning rate of the layer's optimizer
         /// </summary>
         public float? LearningRate { get; set; }
 
+        /// <summary>
+        /// One rate per value, written by versions that had one optimizer per value; read only, and all must be equal
+        /// </summary>
         public float[] LearningRates { get; set; }
     }
 }

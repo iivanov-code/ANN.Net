@@ -135,7 +135,7 @@ namespace ANN.Net.Tests.Compact
                 .OfType<BatchNormalizationLayer>()
                 .Sum(x => x.InputShape.Channels);
             Assert.Equal(31, compact.OperationCount);
-            Assert.Equal(network.Optimizers.Count - normalizedChannels, compact.ParameterCount);
+            Assert.Equal(network.ParameterCount - normalizedChannels, compact.ParameterCount);
         }
 
         [Fact]

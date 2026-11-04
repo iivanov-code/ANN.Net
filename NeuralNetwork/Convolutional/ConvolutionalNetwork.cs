@@ -11,7 +11,7 @@ namespace ANN.Net.Convolutional
 {
     /// <summary>
     /// Convolutional network: convolution, pooling and dense layers followed by a dense output layer. Like the
-    /// transformer it works on whole arrays, and every weight and bias owns an optimizer that is applied as soon as its
+    /// transformer it works on whole arrays, and every weight and bias array has an optimizer that is applied as soon as its
     /// gradient is known
     /// </summary>
     [Serializable]
@@ -98,6 +98,8 @@ namespace ANN.Net.Convolutional
         internal IReadOnlyList<IConvolutionalLayer> Layers { get; }
 
         public ICollection<LearningRateOptimizer> Optimizers { get; }
+
+        public long ParameterCount => Optimizers.OfType<Optimizers.ArrayOptimizer>().Sum(x => (long)x.Length);
 
         public int InputChannels => Settings.InputChannels;
 

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using ANN.Net.Abstractions.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Convolutional;
 
@@ -103,14 +102,10 @@ namespace ANN.Net.Serialization
 
         private static ParametersDocument ToDocument(Parameters parameters)
         {
-            float[] rates = parameters.LearningRates.ToArray();
-            bool shared = rates.Length > 0 && rates.All(x => x.Equals(rates[0]));
-
             return new ParametersDocument
             {
                 Values = parameters.Values.Select(x => (float)x).ToArray(),
-                LearningRate = shared ? rates[0] : null,
-                LearningRates = shared || rates.Length == 0 ? null : rates
+                LearningRate = parameters.LearningRate
             };
         }
 
@@ -260,13 +255,17 @@ namespace ANN.Net.Serialization
             for (int i = 0; i < parameters.Values.Length; i++)
             {
                 parameters.Values[i] = document.Values[i];
+            }
 
-                float? rate = document.LearningRates?[i] ?? document.LearningRate;
-                if (rate.HasValue && parameters.Optimizers[i] is LearningRateOptimizer optimizer)
-                {
-                    if (!(rate >= 0 && rate <= 1)) throw new InvalidDataException($"Invalid learning rate {rate}");
-                    optimizer.LearningRate = rate.Value;
-                }
+            // files written before the optimizers kept their state in arrays may hold one rate per value
+            float? rate = document.LearningRate ?? document.LearningRates?.FirstOrDefault();
+            if (document.LearningRates != null && document.LearningRates.Any(x => !x.Equals(rate)))
+                throw new InvalidDataException($"Layer {layer} holds different learning rates per value; all values of a layer share one now");
+
+            if (rate.HasValue)
+            {
+                if (!(rate >= 0 && rate <= 1)) throw new InvalidDataException($"Invalid learning rate {rate}");
+                parameters.LearningRate = rate.Value;
             }
         }
     }

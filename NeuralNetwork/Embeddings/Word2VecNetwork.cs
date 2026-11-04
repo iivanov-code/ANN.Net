@@ -4,6 +4,7 @@ using System.Linq;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Optimizers;
+using ANN.Net.Optimizers;
 using ANN.Net.Abstractions.Settings;
 using ANN.Net.Transformers;
 using ANN.Net.Utils;
@@ -24,8 +25,8 @@ namespace ANN.Net.Embeddings
         private readonly Word2VecSettings settings;
         private readonly Quad[][] inputEmbeddings;
         private readonly Quad[][] outputEmbeddings;
-        private readonly IOptimizer[][] inputOptimizers;
-        private readonly IOptimizer[][] outputOptimizers;
+        private readonly ArrayOptimizer[] inputOptimizers;
+        private readonly ArrayOptimizer[] outputOptimizers;
         private readonly Quad[] sampleTargets;
 
         [NonSerialized]
@@ -49,8 +50,8 @@ namespace ANN.Net.Embeddings
 
             this.inputEmbeddings = new Quad[vocabularySize][];
             this.outputEmbeddings = new Quad[vocabularySize][];
-            this.inputOptimizers = new IOptimizer[vocabularySize][];
-            this.outputOptimizers = new IOptimizer[vocabularySize][];
+            this.inputOptimizers = new ArrayOptimizer[vocabularySize];
+            this.outputOptimizers = new ArrayOptimizer[vocabularySize];
 
             // as in the reference implementation: small uniform input vectors, zero output vectors
             double limit = 0.5 / dimension;
@@ -58,15 +59,14 @@ namespace ANN.Net.Embeddings
             {
                 this.inputEmbeddings[token] = new Quad[dimension];
                 this.outputEmbeddings[token] = new Quad[dimension];
-                this.inputOptimizers[token] = new IOptimizer[dimension];
-                this.outputOptimizers[token] = new IOptimizer[dimension];
+                // every embedding row is updated as a whole, so it gets one optimizer
+                this.inputOptimizers[token] = ArrayOptimizer.Create(settings.OptimizerType, dimension, this.Optimizers);
+                this.outputOptimizers[token] = ArrayOptimizer.Create(settings.OptimizerType, dimension, this.Optimizers);
 
                 for (int d = 0; d < dimension; d++)
                 {
                     this.inputEmbeddings[token][d] = (Quad)(this.random.NextDouble() * 2 * limit - limit);
                     this.outputEmbeddings[token][d] = 0;
-                    this.inputOptimizers[token][d] = TransformerUtils.CreateOptimizer(settings.OptimizerType, this.Optimizers);
-                    this.outputOptimizers[token][d] = TransformerUtils.CreateOptimizer(settings.OptimizerType, this.Optimizers);
                 }
             }
 
@@ -173,11 +173,13 @@ namespace ANN.Net.Embeddings
             {
                 int token = this.lastOutputTokens[k];
                 Quad[] embedding = this.outputEmbeddings[token];
-                IOptimizer[] optimizers = this.outputOptimizers[token];
+                ArrayOptimizer optimizer = this.outputOptimizers[token];
                 for (int d = 0; d < dimension; d++)
                 {
-                    embedding[d] = optimizers[d].Calculate(errors[k] * this.lastHidden[d], embedding[d]);
+                    embedding[d] = optimizer.Calculate(d, errors[k] * this.lastHidden[d], embedding[d]);
                 }
+
+                optimizer.Advance();
             }
 
             // the hidden vector is the mean of the input embeddings, so each one gets an equal share
@@ -185,11 +187,13 @@ namespace ANN.Net.Embeddings
             foreach (int token in this.lastInputTokens)
             {
                 Quad[] embedding = this.inputEmbeddings[token];
-                IOptimizer[] optimizers = this.inputOptimizers[token];
+                ArrayOptimizer optimizer = this.inputOptimizers[token];
                 for (int d = 0; d < dimension; d++)
                 {
-                    embedding[d] = optimizers[d].Calculate(hiddenGradient[d] * share, embedding[d]);
+                    embedding[d] = optimizer.Calculate(d, hiddenGradient[d] * share, embedding[d]);
                 }
+
+                optimizer.Advance();
             }
 
             return totalLoss;

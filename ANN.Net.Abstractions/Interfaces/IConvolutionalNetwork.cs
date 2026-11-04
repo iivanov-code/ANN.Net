@@ -11,9 +11,15 @@ namespace ANN.Net.Abstractions.Interfaces
     public interface IConvolutionalNetwork : INetwork
     {
         /// <summary>
-        /// Optimizers of every weight and bias, to set the learning rate before training
+        /// Optimizers of the weights and biases, one per weight or bias array of a layer, to set the learning rate
+        /// before training
         /// </summary>
         ICollection<LearningRateOptimizer> Optimizers { get; }
+
+        /// <summary>
+        /// Number of trainable values (weights, biases, batch normalization scales and shifts)
+        /// </summary>
+        long ParameterCount { get; }
 
         int InputChannels { get; }
 

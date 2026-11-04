@@ -44,7 +44,9 @@ compacted yet.
 
 ## Optimizers
 
-Every trainable value owns an optimizer of the network's `OptimizerType`. Learning rates start at 0, so set them
+Every trainable value is updated by an optimizer of the network's `OptimizerType`: convolutional networks,
+transformers and embeddings keep one optimizer per weight array with its state in arrays (4 bytes per value for
+`Normal`, 12 for Adam), layered and graph networks one per synapse, shared by a layer for `Normal`. Learning rates start at 0, so set them
 before training (`network.Optimizers`):
 
 | `OptimizerTypes` | Update | Typical learning rate |
@@ -134,7 +136,7 @@ favours clarity over speed.
 `Seed` (on `ConvolutionalNetworkSettings`, `TransformerSettings` and `NetworkSettings`) makes the initial weights
 reproducible.
 
-Every weight and bias owns an optimizer of `OptimizerType`, as in the transformer. Convolutional networks can be
+Every weight and bias array has an optimizer of `OptimizerType`, as in the transformer. Convolutional networks can be
 saved and loaded like the other networks (`Save`, `ANNetwork.Load`, `NetworkSerializer`) and exported to ONNX
 (`OnnxExporter`), where they become `Conv`, `MaxPool` / `AveragePool`, `Flatten`, `MatMul` and `Softmax` operators.
 
@@ -219,7 +221,7 @@ outputs = session.run(None, {"input": np.array([[0.5, -1.0]], dtype=np.float32)}
 
 `NetworkFactory.BuildTransformer` builds an encoder-only transformer that maps a
 sequence of vectors to a sequence of vectors of the same length. It follows the
-same conventions as the other networks: every trainable value owns an optimizer
+same conventions as the other networks: every weight array has an optimizer
 from `OptimizerTypes`, and `Backpropagate` updates the weights immediately.
 
 ```csharp
@@ -404,10 +406,10 @@ for (int t = 0; t < tokens.Length; t++)
 `IEmbeddingNetwork` interface. It learns one dense vector per token id with
 negative sampling, either as skip-gram (the center token predicts its context)
 or as continuous bag of words (the context predicts the center token). Like the
-other networks every weight owns an optimizer and `Backpropagate` updates the
+other networks every embedding row has an optimizer and `Backpropagate` updates the
 weights immediately, so the learning rate is set the same way. The input and
-output matrices hold `2 * VocabularySize * EmbeddingDimension` weights, each
-with its own optimizer, so size the vocabulary accordingly.
+output matrices hold `2 * VocabularySize * EmbeddingDimension` weights, whose
+optimizer state is kept in arrays, so size the vocabulary accordingly.
 
 ```csharp
 IEmbeddingNetwork word2vec = NetworkFactory.BuildWord2Vec(new Word2VecSettings
