@@ -35,6 +35,10 @@ namespace ANN.Net.Transformers
 
         public MultiHeadAttention Attention => this.attention;
 
+        internal LayerNormalization AttentionNormalization => this.attentionNormalization;
+
+        internal LayerNormalization FeedForwardNormalization => this.feedForwardNormalization;
+
         public IFeedForwardNetwork FeedForward => this.feedForward;
 
         public Quad[][] Propagate(Quad[][] inputs)

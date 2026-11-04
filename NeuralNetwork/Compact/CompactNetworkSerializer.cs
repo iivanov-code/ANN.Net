@@ -57,6 +57,31 @@ namespace ANN.Net
             }
         }
 
+        public static void Save(ICompactSequenceNetwork network, string filePath)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(filePath);
+
+            using FileStream stream = File.Create(filePath);
+            Save(network, stream);
+        }
+
+        public static void Save(ICompactSequenceNetwork network, Stream stream)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+            ArgumentNullException.ThrowIfNull(stream);
+            EnsureLittleEndian();
+
+            if (network is not CompactTransformer transformer)
+                throw new NotSupportedException($"Saving a {network.GetType().Name} is not supported");
+
+            using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+            writer.Write(Magic);
+            writer.Write(Version);
+            writer.Write((byte)network.Precision);
+            writer.Write((byte)3);
+            transformer.Write(writer);
+        }
+
         public static ICompactNetwork Load(string filePath)
         {
             ArgumentException.ThrowIfNullOrEmpty(filePath);
@@ -66,6 +91,32 @@ namespace ANN.Net
         }
 
         public static ICompactNetwork Load(Stream stream)
+        {
+            return Read<ICompactNetwork>(stream, (reader, precision, kind) => kind switch
+            {
+                1 => CompactGraphNetwork.Read(reader, precision),
+                2 => CompactConvolutionalNetwork.Read(reader, precision),
+                3 => throw new InvalidDataException("The file holds a sequence network; load it with LoadSequence"),
+                _ => throw new InvalidDataException($"Unknown compact network kind {kind}")
+            });
+        }
+
+        public static ICompactSequenceNetwork LoadSequence(string filePath)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(filePath);
+
+            using FileStream stream = File.OpenRead(filePath);
+            return LoadSequence(stream);
+        }
+
+        public static ICompactSequenceNetwork LoadSequence(Stream stream)
+        {
+            return Read<ICompactSequenceNetwork>(stream, (reader, precision, kind) => kind == 3
+                ? CompactTransformer.Read(reader, precision)
+                : throw new InvalidDataException("The file does not hold a sequence network; load it with Load"));
+        }
+
+        private static T Read<T>(Stream stream, Func<BinaryReader, WeightPrecision, byte, T> read)
         {
             ArgumentNullException.ThrowIfNull(stream);
             EnsureLittleEndian();
@@ -80,13 +131,7 @@ namespace ANN.Net
                 var precision = (WeightPrecision)reader.ReadByte();
                 CompactIO.Require(Enum.IsDefined(precision), $"Unknown precision {(int)precision}");
 
-                byte kind = reader.ReadByte();
-                return kind switch
-                {
-                    1 => CompactGraphNetwork.Read(reader, precision),
-                    2 => CompactConvolutionalNetwork.Read(reader, precision),
-                    _ => throw new InvalidDataException($"Unknown compact network kind {kind}")
-                };
+                return read(reader, precision, reader.ReadByte());
             }
             catch (EndOfStreamException exception)
             {

@@ -14,7 +14,7 @@ namespace ANN.Net.Transformers
     [Serializable]
     internal class LayerNormalization
     {
-        private const float EPSILON = 1e-5f;
+        internal const float EPSILON = 1e-5f;
 
         private readonly Quad[] gains;
         private readonly Quad[] offsets;

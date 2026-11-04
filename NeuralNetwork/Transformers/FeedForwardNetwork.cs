@@ -29,7 +29,14 @@ namespace ANN.Net.Transformers
             this.expansion = new LinearProjection(modelDimension, hiddenDimension, optimizerType, initializationType, optimizers);
             this.contraction = new LinearProjection(hiddenDimension, modelDimension, optimizerType, initializationType, optimizers);
             this.activation = NetworkUtils.GetActivation(activationType);
+            this.ActivationType = activationType;
         }
+
+        internal LinearProjection Expansion => this.expansion;
+
+        internal LinearProjection Contraction => this.contraction;
+
+        internal ActivationTypes ActivationType { get; }
 
         public Quad[][] Propagate(Quad[][] inputs)
         {

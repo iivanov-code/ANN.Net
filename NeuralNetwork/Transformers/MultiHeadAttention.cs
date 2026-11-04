@@ -54,6 +54,18 @@ namespace ANN.Net.Transformers
 
         public int HeadsCount => this.headsCount;
 
+        internal bool UseCausalMask => this.useCausalMask;
+
+        internal Quad Scale => this.scale;
+
+        internal LinearProjection QueryProjection => this.queryProjection;
+
+        internal LinearProjection KeyProjection => this.keyProjection;
+
+        internal LinearProjection ValueProjection => this.valueProjection;
+
+        internal LinearProjection OutputProjection => this.outputProjection;
+
         /// <summary>
         /// Attention weights of the last propagation indexed as [head][query position][key position]
         /// </summary>

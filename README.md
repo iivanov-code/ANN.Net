@@ -122,8 +122,25 @@ output position over all filters, with SIMD. Convolutional networks compute as w
 `Training = false`. A compact network is a snapshot: training the original later does not change it. It keeps no
 state between calls, so one copy can serve several threads at once. `NetworkCompactor.CompactGraph(settings)`
 compiles `GraphNetworkSettings` straight into a compact network without building the graph network first, which is
-how NEAT evaluates its genomes. Recurrent networks and transformers cannot be
-compacted yet.
+how NEAT evaluates its genomes.
+
+### Transformers
+
+`NetworkCompactor.CompactSequence(transformer, options)` copies a transformer into one weight matrix per projection,
+applied to all tokens of a sequence at once. With 32-bit weights it computes bit for bit what the transformer
+computes; precision, pruning, `PropagateBatch` and `CompactNetworkSerializer.Save`/`LoadSequence` work as for other
+compact networks.
+
+| d = 256, 8 heads, 6 layers, 4.8 M parameters, 64 tokens | Memory | One sequence | Batch of 8, per sequence |
+|---|---|---|---|
+| Transformer, trained with Adam | 57.4 MB | 570 ms | — |
+| Compact, single | 19.3 MB | 40 ms | 15 ms |
+| Compact, half | 9.7 MB | 41 ms | 13 ms |
+| Compact, int8 | 5.0 MB | 39 ms | 15 ms |
+
+Recurrent networks cannot be compacted: `BuildRNN` and `BuildCellRNN` return null, LSTM and GRU cells are not
+implemented, and layers with `NeuronType.RNN` connect the neurons of a layer to each other within one propagation
+instead of to the previous time step, so they keep no state between inputs.
 
 ## Optimizers
 

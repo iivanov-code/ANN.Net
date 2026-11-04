@@ -62,6 +62,16 @@ namespace ANN.Net.Transformers
                                                          this.Optimizers);
         }
 
+        internal TransformerSettings Settings => this.settings;
+
+        internal LinearProjection InputProjection => this.inputProjection;
+
+        internal IReadOnlyList<TransformerEncoderBlock> Blocks => this.blocks;
+
+        internal LayerNormalization OutputNormalization => this.outputNormalization;
+
+        internal LinearProjection OutputProjection => this.outputProjection;
+
         public Quad[][] Values { get; private set; }
 
         public Quad[][] Errors { get; private set; }

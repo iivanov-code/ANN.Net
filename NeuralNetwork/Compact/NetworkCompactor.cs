@@ -36,6 +36,20 @@ namespace ANN.Net
         /// phenotypes of NEAT genomes, this is several times faster and smaller. The settings are validated and pruned
         /// as <c>BuildGraph</c> does
         /// </summary>
+        /// <summary>
+        /// Inference-only copy of a transformer from <c>NetworkFactory.BuildTransformer</c> (also the one inside a
+        /// language model). With 32-bit weights it computes what the transformer computes; the options choose the number
+        /// format of every projection and prune them as for other networks
+        /// </summary>
+        public static ICompactSequenceNetwork CompactSequence(ISequenceNetwork network, CompactOptions options = null)
+        {
+            ArgumentNullException.ThrowIfNull(network);
+
+            if (network is Transformers.TransformerNetwork transformer) return new CompactTransformer(transformer, options);
+
+            throw new NotSupportedException($"A {network.GetType().Name} cannot be compacted");
+        }
+
         public static ICompactNetwork CompactGraph(GraphNetworkSettings settings, CompactOptions options = null)
         {
             return new CompactGraphNetwork(GraphPlan.Create(GraphNetwork.ToPlanDocument(settings)), options);
