@@ -1,4 +1,4 @@
-## License
+﻿## License
 
 Copyright (C) 2021-2026 Ivelin Kirilov Ivanov
 
@@ -503,6 +503,120 @@ inputs (through the normalization and soft-max of the inner network). Any class 
 a node too. Rules: the nodes must not form a cycle, every node needs its own network, and nodes that feed no output
 are left out. Nested networks save and load with `NetworkSerializer` when every node can be saved (transformers
 cannot yet); they cannot be compacted or exported to ONNX yet.
+
+## Spiking networks
+
+A spiking neuron sends no numbers, only spikes: it adds the weights of the synapses whose source fired to its membrane
+potential and fires when the potential reaches a threshold. Information is carried by how often neurons fire, and a
+silent neuron costs no work. ANN.Net simulates spiking networks in discrete time steps with their own classes: the
+synapses of the neuron networks wait every propagation until all inputs have delivered a value, which is the opposite
+of sparse spikes, and their neurons forget everything between propagations, while a membrane potential has to last
+from step to step. `SpikingSynapse` (source, target, weight) is stored in flat arrays grouped by source, 8 bytes per
+synapse; a spike reads its source's weights one after another and adds them with SIMD when they go to consecutive
+neurons, as in a fully connected layer. A synapse into a later layer delivers in the same step, a synapse within a
+layer or back to an earlier one in the next step.
+
+Every layer has a spike function, an `ISpikingActivation`, which can be replaced with `SetActivation`:
+
+| Spike function | Fires for a constant input current c | Counterpart |
+|---|---|---|
+| `IntegrateAndFireActivation` | max(0, c) / threshold spikes per step; with `leak` below 1 a leaky integrate-and-fire neuron | ReLU |
+| `SignedIntegrateAndFireActivation` | c / threshold spikes for c > 0, slope · c / threshold negative spikes for c < 0 | leaky ReLU (slope 1: identity) |
+| `SigmoidRateActivation` | sigmoid(gain · c) spikes per step, the average input since the start | sigmoid (gain 2: tanh) |
+| `PoissonActivation` | a random spike with probability \|c\| | random input encoding |
+
+Integrate-and-fire neurons also take `resetToZero` (instead of subtracting the threshold) and `thresholdAdaptation`
+(every spike raises the neuron's threshold, which decays by `adaptationDecay` per step). Any class implementing
+`ISpikingActivation` can be a spike function.
+
+### Train with ReLU or sigmoid, then convert
+
+```csharp
+IMatrixNetwork network = NetworkFactory.BuildMatrixFFN(settings, hidden);          // ReLU, leaky ReLU, identity, sigmoid or tanh
+// ... train as usual ...
+
+ISpikingNetwork spiking = SpikingNetworkConverter.Convert(network, new SpikingConversionOptions
+{
+    CalibrationInputs = trainingInputs.Take(500).ToList(),                          // float[] each
+    TimeSteps = 16
+});
+float[] outputs = spiking.Propagate(input);                                          // about what network.Propagate computes
+SpikingRun run = spiking.Run(input, timeSteps: 32);                                  // also counts spikes and synapse deliveries
+```
+
+`Convert` takes networks from `BuildFFN` (without recurrent connections), `BuildMatrixFFN` and `BuildGraph`;
+`ConvertGraph` takes `GraphNetworkSettings` such as NEAT phenotypes. Every neuron becomes the spike function of its
+activation. The calibration inputs normalize the inputs: each input is mapped onto [0, 1] (onto [-1, 1] with
+`SignedInputs`) and fed every step as the current of an integrate-and-fire neuron, so an input of 0.25 fires every
+fourth step. They also scale the weights so that the 99.9th percentile (`Percentile`) of every layer's activations
+fires once per step. The outputs are read from the average input current of the output neurons and passed through the
+original output activation and soft-max. Convolutional, nested and recurrent networks cannot be converted yet.
+
+Measured with a 784-256-256-10 ReLU network (268,000 synapses) trained on 10 noisy prototypes, on one core:
+
+| Time steps | Same class as the network | Output difference | Synapse deliveries | Time per input |
+|---|---|---|---|---|
+| 4 | 93 % | 0.22 | 0.9 × synapses | 71 µs |
+| 8 | 100 % | 0.009 | 2.1 × | 187 µs |
+| 16 | 100 % | 0.0008 | 4.3 × | 335 µs |
+| 32 | 100 % | 0.0002 | 8.9 × | 679 µs |
+| 64 | 100 % | 0.0001 | 18 × | 1,372 µs |
+| compact network | | | 1 × (multiply and add) | 22.5 µs |
+
+On a CPU a spiking network is therefore slower than a compact one, not faster: about a quarter of the neurons fire
+in every step, every step repeats the work, and an addition costs a processor as much as a multiplication and
+addition. Spiking networks save energy on neuromorphic chips, which spend power only on spikes. On a CPU they pay off
+where few neurons fire: ReLU networks fire least (a neuron with a negative input never fires), while sigmoid and tanh
+neurons fire about twice as often because their zero is half the maximum rate.
+
+### Learning with spike timing (STDP)
+
+```csharp
+// two neurons learn two patterns of 8 inputs (the setup of CompetingNeuronsLearnDifferentPatterns)
+ISpikingNetwork network = NetworkFactory.BuildSpiking(new SpikingNetworkSettings
+{
+    InputCount = 8,                                                                 // inputs already in [0, 1]; else set InputScaling
+    InputActivation = new PoissonActivation(seed: 0),
+    TimeSteps = 40,
+    Plasticity = new StdpOptions
+    {
+        PotentiationRate = 0.05f, DepressionRate = 0.03f,
+        PotentiationTimeConstant = 4, DepressionTimeConstant = 4, IncomingWeightSum = 3
+    },
+    Layers =
+    {
+        new SpikingLayerSettings
+        {
+            NeuronsCount = 2, MinimumWeight = 0.2f, MaximumWeight = 0.5f, LateralInhibition = 3,
+            Activation = new IntegrateAndFireActivation(leak: 0.9f, thresholdAdaptation: 0.05f, adaptationDecay: 0.999f)
+        }
+    }
+});
+
+for (int round = 0; round < 30; round++)
+{
+    network.Learn(first);                                                           // no labels
+    network.Learn(second);
+}
+```
+
+Spike-timing-dependent plasticity changes the synapses into layers with `Learn` set. When the target fires, a synapse
+grows by `PotentiationRate` times its source's trace; when the source fires, it shrinks by `DepressionRate` times its
+target's trace. A trace jumps by 1 at every spike of its neuron and decays with `PotentiationTimeConstant` or
+`DepressionTimeConstant` steps, so sources that fire just before their target are strengthened and sources that fire
+just after it are weakened. `SoftBounds` slows changes near `MinimumWeight` and `MaximumWeight`, and
+`IncomingWeightSum` rescales each neuron's incoming weights after every input. STDP alone finds patterns but not
+classes. Neurons that compete through `LateralInhibition` (the first to fire silence the others) and
+`thresholdAdaptation` (frequent winners get harder to fire) learn different patterns: with the settings above, the two
+neurons answered different patterns in 51 of 100 seeds before learning and in all 100 after it, each neuron's weights
+from its own pattern ending up more than 12 times those from the other. The initial weights must differ (neurons with
+equal weights receive the same input and stay identical), and random input spikes (`PoissonActivation`) keep two
+neurons from reaching their thresholds in the same step and inhibiting each other equally. Larger inputs such as images need other
+settings (thresholds, rates and weight sums grow with the number of inputs); label the learned neurons afterwards by
+the class they answer most.
+
+A spiking network keeps the state of its neurons, so one instance must not be used by several threads at once.
+Spiking networks cannot be saved yet.
 
 ## Splitting a neuron network across processes
 

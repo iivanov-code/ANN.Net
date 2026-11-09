@@ -5,6 +5,7 @@ using ANN.Net.Abstractions.Collections;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Settings;
+using ANN.Net.Abstractions.Spiking;
 using ANN.Net.Embeddings;
 using ANN.Net.LanguageModels;
 using ANN.Net.Tokenizers;
@@ -137,6 +138,16 @@ namespace ANN.Net
         public static IConvolutionalNetwork BuildConvolutional(ConvolutionalNetworkSettings settings)
         {
             return new Convolutional.ConvolutionalNetwork(settings);
+        }
+
+        /// <summary>
+        /// Builds a layered spiking network, for instance to be trained without labels with
+        /// <see cref="ISpikingNetwork.Learn"/> (spike-timing-dependent plasticity). To turn a trained network into a
+        /// spiking one, use <see cref="SpikingNetworkConverter"/>
+        /// </summary>
+        public static ISpikingNetwork BuildSpiking(SpikingNetworkSettings settings)
+        {
+            return Spiking.SpikingBuilder.Build(settings);
         }
 
         public static INetwork BuildRNN(NetworkSettings settings, HiddenLayerSettings hiddenSettings)
