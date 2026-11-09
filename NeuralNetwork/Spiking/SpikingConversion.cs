@@ -18,7 +18,13 @@ namespace ANN.Net.Spiking
     /// </summary>
     internal static class SpikingConversion
     {
-        public static SpikingNetwork Convert(GraphPlan plan, SpikingConversionOptions options)
+        /// <summary>
+        /// The groups of a plan in column order, its input transform, and every column of every calibration input
+        /// </summary>
+        internal sealed record Calibration(List<GraphPlan.NeuronGroup> Groups, int Width, InputTransform Transform,
+                                           CompactActivation[] Analog, List<float[]> Columns);
+
+        internal static Calibration Calibrate(GraphPlan plan, SpikingConversionOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
             if (options.CalibrationInputs == null || options.CalibrationInputs.Count == 0)
@@ -42,6 +48,12 @@ namespace ANN.Net.Spiking
             InputTransform transform = Transform(plan);
             CompactActivation[] analog = groups.Select(g => CompactActivation.Of(g.Activation)).ToArray();
             List<float[]> columns = options.CalibrationInputs.Select(x => Columns(plan, groups, analog, transform, x, width)).ToList();
+            return new Calibration(groups, width, transform, analog, columns);
+        }
+
+        public static SpikingNetwork Convert(GraphPlan plan, SpikingConversionOptions options)
+        {
+            var (groups, width, transform, analog, columns) = Calibrate(plan, options);
 
             // what every column's firing rate is multiplied by and shifted by to give its value, and what its input is divided by
             float[] scale = new float[width], offset = new float[width], divisor = new float[width];
@@ -139,7 +151,7 @@ namespace ANN.Net.Spiking
         /// The percentile of the positive activations (or of the magnitudes) of a group in the calibration inputs; 1 when
         /// there are none
         /// </summary>
-        private static float Scale(GraphPlan.NeuronGroup group, List<float[]> columns, double percentile, bool magnitude)
+        internal static float Scale(GraphPlan.NeuronGroup group, List<float[]> columns, double percentile, bool magnitude)
         {
             var values = new List<float>();
             foreach (float[] row in columns)
@@ -159,7 +171,7 @@ namespace ANN.Net.Spiking
             return values[Math.Clamp(index, 0, values.Count - 1)];
         }
 
-        private static int GroupOf(List<GraphPlan.NeuronGroup> groups, int column)
+        internal static int GroupOf(List<GraphPlan.NeuronGroup> groups, int column)
         {
             return groups.FindIndex(g => column >= g.FirstColumn && column < g.FirstColumn + g.Count);
         }

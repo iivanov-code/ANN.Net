@@ -20,13 +20,36 @@ namespace ANN.Net
         /// </summary>
         public static ISpikingNetwork Convert(INetwork network, SpikingConversionOptions options)
         {
+            return Spiking.SpikingConversion.Convert(Plan(network), options);
+        }
+
+        /// <summary>
+        /// Time-to-first-spike copy of a network from <c>NetworkFactory.BuildFFN</c> (without recurrent connections),
+        /// <c>BuildMatrixFFN</c> or <c>BuildGraph</c>: every neuron fires at most once, earlier for a larger value, so
+        /// the work is at most one multiply-add per synapse. <see cref="SpikingConversionOptions.TimeSteps"/> is the
+        /// window of every layer. Neurons of any activation can be converted
+        /// </summary>
+        public static IFirstSpikeNetwork ConvertToFirstSpike(INetwork network, SpikingConversionOptions options)
+        {
+            return Spiking.FirstSpikeNetwork.Convert(Plan(network), options);
+        }
+
+        /// <summary>
+        /// Time-to-first-spike network of a graph, such as the phenotype of a NEAT genome
+        /// </summary>
+        public static IFirstSpikeNetwork ConvertGraphToFirstSpike(GraphNetworkSettings settings, SpikingConversionOptions options)
+        {
+            return Spiking.FirstSpikeNetwork.Convert(GraphPlan.Create(GraphNetwork.ToPlanDocument(settings)), options);
+        }
+
+        private static GraphPlan Plan(INetwork network)
+        {
             ArgumentNullException.ThrowIfNull(network);
 
             if (network is Convolutional.ConvolutionalNetwork) throw new NotSupportedException("Convolutional networks cannot be converted to spiking networks yet");
             if (network is Nested.NestedNetwork) throw new NotSupportedException("Nested networks cannot be converted to spiking networks yet");
 
-            GraphPlan plan = network is Matrix.MatrixNetwork matrix ? GraphPlan.Create(matrix) : GraphPlan.Create(NetworkSerializer.ToDocument(network));
-            return Spiking.SpikingConversion.Convert(plan, options);
+            return network is Matrix.MatrixNetwork matrix ? GraphPlan.Create(matrix) : GraphPlan.Create(NetworkSerializer.ToDocument(network));
         }
 
         /// <summary>

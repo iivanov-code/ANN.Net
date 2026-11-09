@@ -565,9 +565,48 @@ Measured with a 784-256-256-10 ReLU network (268,000 synapses) trained on 10 noi
 
 On a CPU a spiking network is therefore slower than a compact one, not faster: about a quarter of the neurons fire
 in every step, every step repeats the work, and an addition costs a processor as much as a multiplication and
-addition. Spiking networks save energy on neuromorphic chips, which spend power only on spikes. On a CPU they pay off
-where few neurons fire: ReLU networks fire least (a neuron with a negative input never fires), while sigmoid and tanh
-neurons fire about twice as often because their zero is half the maximum rate.
+addition. Spiking networks save energy on neuromorphic chips, which spend power only on spikes. ReLU networks fire
+least (a neuron with a negative input never fires), while sigmoid and tanh neurons fire about twice as often because
+their zero is half the maximum rate. Time-to-first-spike coding needs far fewer spikes.
+
+### Time-to-first-spike coding
+
+```csharp
+IFirstSpikeNetwork spiking = SpikingNetworkConverter.ConvertToFirstSpike(network, new SpikingConversionOptions
+{
+    CalibrationInputs = trainingInputs.Take(500).ToList(),
+    TimeSteps = 256                                                                  // window of every layer
+});
+float[] outputs = spiking.Propagate(input);
+IReadOnlyList<FirstSpike> spikes = spiking.GetLastSpikes();                         // neuron, step and sign of every spike
+```
+
+Here every neuron fires at most once: layer d fires in window d of W steps, and a neuron fires in step
+round(W · (1 − |value| / scale)) of it, the larger its value the earlier; a value that rounds to 0 does not fire at
+all. On a neuromorphic chip the spike switches on a constant current into every target that flows until the end of the
+window, so a target receives weight · (W − step) / W; when its own window starts it has its whole input, and a ReLU
+neuron fires when that input plus a rising ramp reaches its threshold. The simulation computes these spike steps
+directly, one multiply-add per synapse of every neuron that fires, so the work does not grow with the window: a longer
+window only gives finer values (1/W of every layer's scale) and a longer delay (`SpikingRun.TimeSteps`, one window per
+layer). Neurons of any activation convert, also GELU and the like, with negative spikes for negative values.
+`ConvertGraphToFirstSpike` converts graph settings such as NEAT phenotypes, connections that skip layers included.
+
+The same 784-256-256-10 network, one core, best of 7 runs; once with 65 % of the inputs non-zero, once with 21 %
+(as in handwritten digits):
+
+| | Synapse deliveries | Time, 65 % non-zero | Time, 21 % non-zero |
+|---|---|---|---|
+| Rate coding, 16 steps | 4.3 × synapses | 335 µs | |
+| First spike, window 16 (100 % same class) | 0.56 × / 0.25 × | 33 µs | 22 µs |
+| First spike, window 256 | 0.59 × / 0.25 × | 38 µs | 23 µs |
+| Compact network | the non-zero inputs | 22 µs | 11 µs |
+
+Even a window of 4 steps gave the same classes, the outputs differing by 0.0002 on average. First-spike coding is 10
+to 15 times faster than rate coding, but still about 1.5 to 2 times slower than the compact network: its saving is that
+neurons with the value 0 cost nothing, and the compact network already skips zero inputs in its matrix products. What
+is left is the bookkeeping of encoding every neuron's value as a spike step. Spikes therefore save processor time over
+a dense network that multiplies zeros, not over one that skips them; their real advantage is on neuromorphic chips,
+where first-spike coding needs the fewest spikes of all codings.
 
 ### Learning with spike timing (STDP)
 
@@ -616,7 +655,7 @@ settings (thresholds, rates and weight sums grow with the number of inputs); lab
 the class they answer most.
 
 A spiking network keeps the state of its neurons, so one instance must not be used by several threads at once.
-Spiking networks cannot be saved yet.
+Spiking networks cannot be saved yet, and first-spike networks cannot learn with STDP.
 
 ## Splitting a neuron network across processes
 
