@@ -608,6 +608,24 @@ is left is the bookkeeping of encoding every neuron's value as a spike step. Spi
 a dense network that multiplies zeros, not over one that skips them; their real advantage is on neuromorphic chips,
 where first-spike coding needs the fewest spikes of all codings.
 
+### Spiking networks of any topology
+
+```csharp
+ISpikingNetwork network = NetworkFactory.BuildSpiking(new SpikingGraphSettings
+{
+    Layers = { new SpikingGraphLayer(2), new SpikingGraphLayer(3, new IntegrateAndFireActivation(leak: 0.9f), learn: true), new SpikingGraphLayer(1) },
+    Synapses = { new SpikingSynapse(0, 2, 0.8f), new SpikingSynapse(1, 3, 0.5f), new SpikingSynapse(0, 5, 1.2f), new SpikingSynapse(4, 4, 0.3f) },
+    Bias = new[] { 0f, 0f, 0.1f, 0f, 0f, 0.05f },                                    // current per neuron and step
+    Outputs = { 5, 4 },                                                              // neurons whose rates are the outputs
+    TimeSteps = 40
+});
+```
+
+Neurons are numbered across the layers, layer 0 holding the inputs, and a synapse may connect any two neurons except
+into an input. A synapse into a later layer delivers in the same time step; one within a layer or back to an earlier
+layer delivers in the next step, so cycles are allowed and give the network memory (a neuron exciting itself keeps
+firing after its input made it fire once). NEAT.net builds the spiking networks of genomes this way.
+
 ### Learning with spike timing (STDP)
 
 ```csharp

@@ -36,6 +36,8 @@ namespace ANN.Net.Spiking
             return new SpikingReadout(neurons, null, null, false);
         }
 
+        public static SpikingReadout Rates(int[] neurons) => new SpikingReadout(neurons, null, null, false);
+
         /// <param name="divisors">What the input currents of every output were divided by when the weights were scaled</param>
         /// <param name="activations">Activation of the original network for every output</param>
         /// <param name="divideBySum">Divide every output by the sum of all outputs, as the original network does</param>

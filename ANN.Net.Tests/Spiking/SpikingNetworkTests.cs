@@ -192,6 +192,75 @@ namespace ANN.Net.Tests.Spiking
             }));
         }
 
+        [Fact]
+        public void GraphsOfAnyTopologyCanBeBuilt()
+        {
+            // inputs 0, 1; layer 1: neuron 2 (fed by 0) and 3 (fed by 0 and 1, bias 0.25); layer 2: neuron 4 fed by 2 and
+            // by input 1 directly; outputs 4 and 3
+            ISpikingNetwork network = NetworkFactory.BuildSpiking(new SpikingGraphSettings
+            {
+                Layers = { new SpikingGraphLayer(2), new SpikingGraphLayer(2), new SpikingGraphLayer(1, new IntegrateAndFireActivation(threshold: 2)) },
+                Synapses =
+                {
+                    new SpikingSynapse(0, 2, 1), new SpikingSynapse(0, 3, 0.25f), new SpikingSynapse(1, 3, 0.25f),
+                    new SpikingSynapse(2, 4, 1), new SpikingSynapse(1, 4, 1)
+                },
+                Bias = new[] { 0f, 0f, 0f, 0.25f, 0f },
+                Outputs = { 4, 3 },
+                TimeSteps = 40
+            });
+
+            Assert.Equal(new[] { 2, 2, 1 }, network.LayerSizes);
+            Assert.Equal(5, network.SynapseCount);
+
+            // 2 fires every step; 3 gets 0.25 + 0.25 + bias 0.25 per step and fires 30 times; 4 gets 2 per step against threshold 2
+            SpikingRun run = network.Run(new[] { 1f, 1f }, 40);
+            Assert.Equal(40, run.OutputSpikes[0]);
+            Assert.Equal(30, run.OutputSpikes[1]);
+            Assert.Equal(new[] { 1f, 0.75f }, run.Outputs);
+        }
+
+        [Fact]
+        public void CyclesGiveTheNetworkMemory()
+        {
+            // input 0.25 fires every fourth step; a neuron that excites itself fires every step from its first spike on
+            SpikingGraphSettings Settings(float loop) => new SpikingGraphSettings
+            {
+                Layers = { new SpikingGraphLayer(1), new SpikingGraphLayer(1) },
+                Synapses = { new SpikingSynapse(0, 1, 1), new SpikingSynapse(1, 1, loop) }
+            };
+
+            Assert.Equal(new[] { 10 }, NetworkFactory.BuildSpiking(Settings(0)).Run(new[] { 0.25f }, 40).OutputSpikes);
+            Assert.Equal(new[] { 37 }, NetworkFactory.BuildSpiking(Settings(1)).Run(new[] { 0.25f }, 40).OutputSpikes);
+        }
+
+        [Fact]
+        public void InvalidGraphsAreRejected()
+        {
+            SpikingGraphSettings Valid() => new SpikingGraphSettings
+            {
+                Layers = { new SpikingGraphLayer(1), new SpikingGraphLayer(1) },
+                Synapses = { new SpikingSynapse(0, 1, 1) }
+            };
+
+            Assert.Throws<ArgumentException>(() => NetworkFactory.BuildSpiking(new SpikingGraphSettings { Layers = { new SpikingGraphLayer(1) } }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new SpikingGraphLayer(0));
+
+            var outputs = Valid();
+            outputs.Outputs.Add(5);
+            Assert.Throws<ArgumentException>(() => NetworkFactory.BuildSpiking(outputs));
+
+            var bias = Valid();
+            bias.Bias = new[] { 0f };
+            Assert.Throws<ArgumentException>(() => NetworkFactory.BuildSpiking(bias));
+            bias.Bias = new[] { 1f, 0f };
+            Assert.Throws<ArgumentException>(() => NetworkFactory.BuildSpiking(bias));
+
+            var synapse = Valid();
+            synapse.Synapses.Add(new SpikingSynapse(1, 0, 1));
+            Assert.Throws<ArgumentException>(() => NetworkFactory.BuildSpiking(synapse));
+        }
+
         private static float StdpWeight(float sourceStep, float driverStep)
         {
             var plasticity = new StdpOptions

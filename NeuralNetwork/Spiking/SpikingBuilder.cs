@@ -79,5 +79,42 @@ namespace ANN.Net.Spiking
             return new SpikingNetwork(sizes, activations, learns, null, synapses, settings.InputScaling, null,
                                       SpikingReadout.Rates(start - outputs, outputs), settings.TimeSteps, settings.Plasticity);
         }
+
+        public static SpikingNetwork Build(SpikingGraphSettings settings)
+        {
+            ArgumentNullException.ThrowIfNull(settings);
+            ArgumentOutOfRangeException.ThrowIfLessThan(settings.TimeSteps, 1);
+            if (settings.Layers == null || settings.Layers.Count < 2)
+                throw new ArgumentException("A spiking network needs an input layer and at least one more", nameof(settings));
+            if (settings.Layers.Any(x => x == null)) throw new ArgumentException("A layer is null", nameof(settings));
+            ArgumentNullException.ThrowIfNull(settings.Synapses, nameof(settings));
+            if (settings.InputScaling != null && settings.InputScaling.Count != settings.Layers[0].NeuronsCount)
+                throw new ArgumentException("The input scaling needs one value per input", nameof(settings));
+
+            int count = settings.Layers.Sum(x => x.NeuronsCount);
+            float[] bias = null;
+            if (settings.Bias != null)
+            {
+                if (settings.Bias.Count != count) throw new ArgumentException($"The bias needs one value per neuron ({count})", nameof(settings));
+                if (settings.Bias.Any(x => !float.IsFinite(x))) throw new ArgumentException("The bias must be finite", nameof(settings));
+                if (settings.Bias.Take(settings.Layers[0].NeuronsCount).Any(x => x != 0))
+                    throw new ArgumentException("Inputs receive no bias", nameof(settings));
+                bias = settings.Bias.ToArray();
+            }
+
+            int lastLayer = count - settings.Layers[^1].NeuronsCount;
+            int[] outputs = settings.Outputs == null || settings.Outputs.Count == 0
+                ? Enumerable.Range(lastLayer, settings.Layers[^1].NeuronsCount).ToArray()
+                : settings.Outputs.ToArray();
+            if (outputs.Any(x => x < 0 || x >= count)) throw new ArgumentException("An output neuron does not exist", nameof(settings));
+
+            settings.Plasticity?.Validate();
+
+            var activations = settings.Layers.Select(x => x.Activation ?? new IntegrateAndFireActivation()).ToList();
+            var learns = settings.Layers.Select((x, i) => i > 0 && x.Learn).ToList();
+
+            return new SpikingNetwork(settings.Layers.Select(x => x.NeuronsCount).ToList(), activations, learns, bias, settings.Synapses.ToList(),
+                                      settings.InputScaling, null, SpikingReadout.Rates(outputs), settings.TimeSteps, settings.Plasticity);
+        }
     }
 }

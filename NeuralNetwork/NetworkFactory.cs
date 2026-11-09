@@ -150,6 +150,14 @@ namespace ANN.Net
             return Spiking.SpikingBuilder.Build(settings);
         }
 
+        /// <summary>
+        /// Builds a spiking network of any topology from its layers and synapses, such as the phenotype of a NEAT genome
+        /// </summary>
+        public static ISpikingNetwork BuildSpiking(SpikingGraphSettings settings)
+        {
+            return Spiking.SpikingBuilder.Build(settings);
+        }
+
         public static INetwork BuildRNN(NetworkSettings settings, HiddenLayerSettings hiddenSettings)
         {
             Network rnn = new Network(settings);
