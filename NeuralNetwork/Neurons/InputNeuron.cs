@@ -1,39 +1,31 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using System;
+using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
+    [Serializable]
     internal class InputNeuron : Neuron, IInputNeuron
     {
-        public InputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
-            : base(activationType)
-        {
-            if (recurrentInputs != 0)
-                this.Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+        public InputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0, uint? id = null)
+            : base(false, true, activationType, id)
+        { }
 
-            this.Outputs = new SynapseCollection<ISynapse>();
+        /// <summary>
+        /// Gradient of the loss with respect to the raw input value, from the last backpropagation
+        /// </summary>
+        public Quad Gradient => this.Delta;
+
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
+        {
+            // the error of every output synapse is collected; once complete FeedbackError stores the gradient
+            Outputs.AccumulateError(errorSignal);
         }
 
-        public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        public override void Propagate(NeuronPropagateEventArgs value)
         {
-            AccumulateError(errorSignal, eWeightedSignal, updateWeight);
-            this.Outputs.ResetCounter();
-            _error = 0;
-        }
-
-        public override void Propagate(float value)
-        {
-            _value = Function.Activation(value);
-
-            foreach (var output in Outputs)
-            {
-                output.Propagate(_value);
-            }
-
-            _lastValue = _value;
-            _value = 0;
+            ActivateNeuron(value);
         }
     }
 }

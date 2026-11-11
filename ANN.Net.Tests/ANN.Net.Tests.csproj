@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+        <!-- runs exported ONNX models to compare them with the networks -->
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\NeuralNetwork\ANN.Net.csproj" />
+        <ProjectReference Include="..\ANN.Net.Remote\ANN.Net.Remote.csproj" />
+    </ItemGroup>
+
+</Project>

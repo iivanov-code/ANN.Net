@@ -1,25 +1,28 @@
-﻿using NeuralNetwork.Interfaces;
-using NeuralNetwork.Neurons;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using ANN.Net.Abstractions.Interfaces;
+using ANN.Net.Abstractions.Interfaces.Neurons;
+using ANN.Net.Abstractions.Interfaces.Synapses;
+using ANN.Net.Neurons;
 
-namespace NeuralNetwork.Utils
+namespace ANN.Net.Utils
 {
     public static class DrawingUtils
     {
         public const int X_OFFSET = 5;
         public const int Y_OFFSET = 5;
-#if DEBUG
+
         public static NetworkDrawing GetDrawing(this INetwork network, float width = 1920, float height = 1080)
         {
             Network net = (Network)network;
+
             BaseNetworkDrawing drawing = new NetworkDrawing();
 
             int layersCount = net.HiddenLayers.Count + 2;
 
-            int columnsCount = (layersCount * 2) - 1;
+            int columnsCount = layersCount * 2 - 1;
             int maxRowsCount = Math.Max(net.InputNeurons.Count, net.OutputNeurons.Count);
             maxRowsCount = Math.Max(maxRowsCount, net.HiddenLayers.Select(x => x.Count).Max()) * 2;
 
@@ -41,15 +44,7 @@ namespace NeuralNetwork.Utils
 
             return drawing as NetworkDrawing;
         }
-#else
-        public static NetworkDrawing GetDrawing(this INetwork network, float width = 1920, float height = 1080)
-        {
-            throw new NotImplementedException("CAN NOT DRAW IMAGE IN RELEASE MODE");
-        }
-#endif
 
-
-#if DEBUG
         private static void AddLayerNodes(BaseNetworkDrawing drawing, IEnumerable<INeuron> neurons, int x, int maxNeuronsCount, Size circleSize)
         {
             int y = Y_OFFSET;
@@ -72,7 +67,7 @@ namespace NeuralNetwork.Utils
                 {
                     foreach (ISynapse connection in neuron.Outputs)
                     {
-                        var line = new Line(neuron.ID, connection.Output.ID, connection.Weight)
+                        var line = new Line(neuron.ID, connection.Output.ID, 0)
                         {
                             From = nodeCenterPoint
                         };
@@ -95,13 +90,13 @@ namespace NeuralNetwork.Utils
                 y += cellHeight * 2;
             }
         }
-#endif
-
     }
 
     public class NetworkDrawing : BaseNetworkDrawing
     {
-        internal NetworkDrawing() : base() { }
+        internal NetworkDrawing() : base()
+        {
+        }
 
         public new IEnumerable<Rectangle> NodeCircles
         {
@@ -139,13 +134,13 @@ namespace NeuralNetwork.Utils
 
     public class Node : INode
     {
-        public Node(Guid id, Rectangle circle)
+        public Node(uint id, Rectangle circle)
         {
             this.ID = id;
             this.Circle = circle;
         }
 
-        public Guid ID { get; set; }
+        public uint ID { get; set; }
         public Rectangle Circle { get; set; }
     }
 
@@ -153,19 +148,19 @@ namespace NeuralNetwork.Utils
     {
         Point From { get; }
         Point To { get; set; }
-        float Weight { get; }
+        double Weight { get; }
     }
 
     public class LineKey : IEquatable<LineKey>
     {
-        public LineKey(Guid fromId, Guid toId)
+        public LineKey(uint fromId, uint toId)
         {
             this.FromID = fromId;
             this.ToID = toId;
         }
 
-        public Guid FromID { get; set; }
-        public Guid ToID { get; set; }
+        public uint FromID { get; set; }
+        public uint ToID { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -181,12 +176,11 @@ namespace NeuralNetwork.Utils
         {
             return this.FromID.GetHashCode() ^ this.ToID.GetHashCode();
         }
-
     }
 
     public class Line : LineKey, ILine
     {
-        public Line(Guid fromID, Guid toID, float weight)
+        public Line(uint fromID, uint toID, double weight)
             : base(fromID, toID)
         {
             this.Weight = weight;
@@ -194,6 +188,6 @@ namespace NeuralNetwork.Utils
 
         public Point From { get; set; }
         public Point To { get; set; }
-        public float Weight { get; set; }
+        public double Weight { get; set; }
     }
 }

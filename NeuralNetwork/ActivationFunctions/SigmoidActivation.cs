@@ -1,17 +1,18 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using System;
+using ANN.Net.Abstractions.Attributes;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
 
-namespace NeuralNetwork.ActivationFunctions
+namespace ANN.Net.ActivationFunctions
 {
+    [Serializable]
     [ActivationType(Type = ActivationTypes.Sigmoid)]
-    internal class SigmoidActivation : BaseActivation<SigmoidActivation>, IActivationFunction
+    internal class HardSigmoidActivation : BaseActivation<HardSigmoidActivation>, IActivationFunction
     {
-        private static readonly float minValue = 0;
-        private static readonly float maxValue = 1;
+        private static readonly Quad minValue = 0;
+        private static readonly Quad maxValue = 1;
 
-        public float MinValue
+        public Quad MinValue
         {
             get
             {
@@ -19,7 +20,7 @@ namespace NeuralNetwork.ActivationFunctions
             }
         }
 
-        public float MaxValue
+        public Quad MaxValue
         {
             get
             {
@@ -27,19 +28,24 @@ namespace NeuralNetwork.ActivationFunctions
             }
         }
 
-        public float Activation(float x)
+        public Quad Activation(ref Quad x)
         {
-            return (float)(1 / (1 + Math.Pow(Math.E, -x))); // standard sigmoid
+            x = (Quad)(1 / (1 + Math.Pow(Math.E, -x))); // standard sigmoid
+            return x;
         }
 
-        public float Prime(float deltaX)
+        /// <summary>
+        /// Derivative at the value before activation: s(x) * (1 - s(x))
+        /// </summary>
+        public Quad Derivative(Quad x)
         {
-            return deltaX * (1 - deltaX);
+            double s = 1 / (1 + Math.Exp(-x));
+            return (Quad)(s * (1 - s));
         }
 
-        public static float Activate(float x)
+        public static Quad Activate(ref Quad x)
         {
-            return Instance.Activation(x);
+            return Instance.Activation(ref x);
         }
     }
 }

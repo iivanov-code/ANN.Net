@@ -1,43 +1,44 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using System;
+using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
-    internal class BiasNeuron : INeuron, IInputNeuron, IHiddenNeuron
+    /// <summary>
+    /// Neuron with the constant output 1; the weights of its output synapses are the biases of the next layer
+    /// </summary>
+    [Serializable]
+    internal class BiasNeuron : Neuron, IInputNeuron, IHiddenNeuron
     {
-        public const float VALUE = 1;
-
-        public BiasNeuron()
+        public BiasNeuron(ActivationTypes activationType, uint? id = null)
+             : base(false, true, activationType, id)
         {
-            this.Outputs = new SynapseCollection<ISynapse>();
-            this.Inputs = new SynapseCollection<ISynapse>();
+            this.Value = 1;
+            this.PreActivation = 1;
         }
 
-        public Guid ID => Guid.NewGuid();
+        public Quad Gradient => 0;
 
-        public ISynapseCollection<ISynapse> Outputs { get; }
-
-        public ISynapseCollection<ISynapse> Inputs { get; }
-
-        public void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
-            Outputs.AccountSignal();
-            if (Outputs.CheckCountAndReset())
-                updateWeight(errorSignal * VALUE);
+            Outputs.AccumulateError(errorSignal);
         }
 
-        public void Propagate(float value)
+        public override void Propagate(NeuronPropagateEventArgs value)
         {
-            if (Inputs.Count > 0)
-                Inputs?.AccountSignal();
+            ActivateNeuron(value);
+        }
 
-            if (Inputs.CheckCountAndReset())
-                foreach (var output in Outputs)
-                {
-                    output.Propagate(VALUE);
-                }
+        protected override void ActivateNeuron(NeuronPropagateEventArgs value)
+        {
+            this.WasActivated = false;
+            this.Outputs.PropagateForEach(new NeuronPropagateEventArgs(1));
+        }
+
+        protected override void FeedbackError(BackpropagateEventArgs value)
+        {
+            // the output is constant, there is nothing to pass back
         }
     }
 }

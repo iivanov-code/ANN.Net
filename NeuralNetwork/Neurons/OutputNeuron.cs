@@ -1,43 +1,36 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using System;
+using ANN.Net.Abstractions.Arguments;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces.Neurons;
 
-namespace NeuralNetwork.Neurons
+namespace ANN.Net.Neurons
 {
+    [Serializable]
     internal class OutputNeuron : Neuron, IOutputNeuron
     {
-        public OutputNeuron(ActivationTypes activationType, ushort recurrentInputs = 0)
-            : base(activationType)
+        private readonly bool shouldActivate;
+
+        public OutputNeuron(ActivationTypes activationType, bool shouldActivate, uint? id = null)
+            : base(true, true, activationType, id)
         {
-            this.Inputs = new SynapseCollection<ISynapse>(recurrentInputs);
+            this.shouldActivate = shouldActivate;
         }
 
-        public float Value => this._lastValue;
+        protected override bool ShouldActivate => this.shouldActivate;
 
-        public override void Backpropagate(float errorSignal, float eWeightedSignal = 0, Action<float> updateWeight = null)
+        /// <summary>
+        /// Whether the activation function is applied to the output (it is not when the network applies soft-max)
+        /// </summary>
+        internal bool ApplyActivation => this.shouldActivate;
+
+        public override void Backpropagate(BackpropagateEventArgs errorSignal)
         {
-            _error = errorSignal;
-            _lastValue = Function.Prime(_lastValue);
-            _error = _lastValue * _error; //derivative * errorSignal
-            _lastValue = 0;
-            foreach (ISynapse input in Inputs)
-            {
-                input.Backpropagate(_error);
-            }
-            _error = 0;
+            FeedbackError(errorSignal);
         }
 
-        public override void Propagate(float value)
+        public override void Propagate(NeuronPropagateEventArgs value)
         {
-            _value += value;
-            Inputs.AccountSignal();
-            if (Inputs.CheckCountAndReset())
-            {
-                _value = Function.Activation(_value);
-                _lastValue = _value;
-                _value = 0;
-            }
+            Inputs.AccountSignal(value);
         }
     }
 }

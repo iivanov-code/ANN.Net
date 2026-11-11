@@ -1,34 +1,39 @@
-﻿using NeuralNetwork.Enums;
-using NeuralNetwork.HelperClasses;
-using NeuralNetwork.Interfaces;
-using System;
+﻿using System;
+using ANN.Net.Abstractions.Attributes;
+using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Interfaces;
 
-namespace NeuralNetwork.ActivationFunctions
+namespace ANN.Net.ActivationFunctions
 {
     [Serializable]
     [ActivationType(Type = ActivationTypes.HyperbolicTangens)]
-    internal class TanHActivation : BaseActivation<SigmoidActivation>, IActivationFunction
+    internal class TanHActivation : BaseActivation<TanHActivation>, IActivationFunction
     {
-        private static readonly float minValue = -1;
-        private static readonly float maxValue = 1;
+        private static readonly Quad minValue = -1;
+        private static readonly Quad maxValue = 1;
 
-        public float MinValue => minValue;
+        public Quad MinValue => minValue;
 
-        public float MaxValue => maxValue;
+        public Quad MaxValue => maxValue;
 
-        public float Activation(float x)
+        public Quad Activation(ref Quad x)
         {
-            return (float)Math.Tanh(x);
+            x = (Quad)Math.Tanh(x);
+            return x;
         }
 
-        public float Prime(float x)
+        /// <summary>
+        /// Derivative at the value before activation: 1 - tanh(x)^2
+        /// </summary>
+        public Quad Derivative(Quad x)
         {
-            return (float)(1 - Math.Pow(x, 2));
+            double tanh = Math.Tanh(x);
+            return (Quad)(1 - tanh * tanh);
         }
 
-        public static float Activate(float x)
+        public static Quad Activate(ref Quad x)
         {
-            return Instance.Activation(x);
+            return Instance.Activation(ref x);
         }
     }
 }

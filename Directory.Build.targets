@@ -1,0 +1,13 @@
+<Project>
+   <PropertyGroup>
+      <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+      <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+      <!-- NuGet audit findings stay visible as warnings rather than breaking the build.
+           The vulnerable packages arrive transitively (SixLabors.ImageSharp and
+           IdentityModel are the only direct references; MailKit/MimeKit/BouncyCastle
+           come in through TL.Email.ExtendedClient), so clearing them is a supply-chain
+           change that needs its own review rather than a prerequisite for compiling.
+           Remove this once those packages are updated. -->
+      <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902;NU1903</WarningsNotAsErrors>
+   </PropertyGroup>
+</Project>
