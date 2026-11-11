@@ -20,6 +20,7 @@ namespace ANN.Net.Serialization
                 Kind = NetworkKind.Layered,
                 Matrix = true,
                 LossType = network.LossType,
+                LossOptions = network.LossOptions,
                 ShouldNormalize = network.ShouldNormalize,
                 OutputApplySoftMax = network.OutputApplySoftMax,
                 MinMaxValues = network.MinMaxValues?.Select(x => new[] { (float)x.Item1, (float)x.Item2 }).ToList()

@@ -62,6 +62,7 @@ namespace ANN.Net.Remote
             {
                 IdentityGenerator = settings.IdentityGenerator,
                 LossType = settings.LossType,
+                LossOptions = settings.LossOptions,
                 OutputApplySoftMax = settings.OutputApplySoftMax,
                 ShouldNormalize = false,
                 MinMaxValues = null,

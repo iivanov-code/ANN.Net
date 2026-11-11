@@ -166,6 +166,7 @@ namespace ANN.Net
                 Version = FormatVersion,
                 Kind = kind,
                 LossType = layered.LossType,
+                LossOptions = layered.LossOptions,
                 ShouldNormalize = layered.ShouldNormalize,
                 OutputApplySoftMax = layered.ApplySoftMax,
                 MinMaxValues = layered.MinMaxValues?.Select(x => new[] { (float)x.Item1, (float)x.Item2 }).ToList()
@@ -347,6 +348,7 @@ namespace ANN.Net
             var network = new Network(new NetworkSettings
             {
                 LossType = document.LossType,
+                LossOptions = document.LossOptions,
                 ShouldNormalize = document.ShouldNormalize,
                 OutputApplySoftMax = document.OutputApplySoftMax,
                 MinMaxValues = document.MinMaxValues?.Select(ToMinMax).ToList(),

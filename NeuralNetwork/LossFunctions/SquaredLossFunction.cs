@@ -1,21 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using ANN.Net.Abstractions.Interfaces;
-using ANN.Net.Abstractions.Models;
-
+﻿
 namespace ANN.Net.LossFunctions
 {
-    internal class SquaredLossFunction : BaseLossFunction<SquaredLossFunction>, ILossFunction
+    /// <summary>
+    /// Half the sum of the squared errors; its gradient is predicted - target
+    /// </summary>
+    internal sealed class SquaredLossFunction : PointwiseLossFunction
     {
-        public Quad CalculateLoss(IList<ErrorResult> result)
+        public SquaredLossFunction()
+            : base(false)
         {
-            Quad sum = 0;
-            foreach (var item in result)
-            {
-                sum += (Quad)Math.Pow(item.Target - item.Predicted, 2);
-            }
+        }
 
-            return sum;
+        protected override double Value(double target, double predicted)
+        {
+            double error = predicted - target;
+            return error * error / 2;
+        }
+
+        protected override double Derivative(double target, double predicted)
+        {
+            return predicted - target;
         }
     }
 }

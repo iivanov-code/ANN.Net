@@ -30,7 +30,7 @@ namespace ANN.Net.Matrix
         private BatchTrainer<MatrixNetwork> trainer;
 
         internal MatrixNetwork(int inputCount, bool inputBias, ActivationTypes inputActivation, bool shouldNormalize, IReadOnlyList<Tuple<Quad, Quad>> minMax,
-                               bool softMax, LossFunctionTypes lossType)
+                               bool softMax, LossFunctionTypes lossType, LossOptions lossOptions)
         {
             InputCount = inputCount;
             InputBias = inputBias;
@@ -40,7 +40,8 @@ namespace ANN.Net.Matrix
             MinMaxValues = minMax;
             OutputApplySoftMax = softMax;
             LossType = lossType;
-            lossFunction = NetworkUtils.GetLossFunction(lossType);
+            LossOptions = lossOptions;
+            lossFunction = NetworkUtils.GetLossFunction(lossType, lossOptions);
             Optimizers = new List<LearningRateOptimizer>();
             Layers = new List<MatrixLayer>();
         }
@@ -56,6 +57,8 @@ namespace ANN.Net.Matrix
         internal bool OutputApplySoftMax { get; }
 
         internal LossFunctionTypes LossType { get; }
+
+        internal LossOptions LossOptions { get; }
 
         internal List<MatrixLayer> Layers { get; }
 
@@ -80,7 +83,7 @@ namespace ANN.Net.Matrix
             using IDisposable seed = NetworkUtils.SeedRandom(settings.Seed);
 
             var network = new MatrixNetwork(settings.InputSettings.NeuronsCount, settings.InputSettings.HasBiasNeuron, settings.InputSettings.ActivationType,
-                                            settings.ShouldNormalize, settings.MinMaxValues, settings.OutputApplySoftMax, settings.LossType);
+                                            settings.ShouldNormalize, settings.MinMaxValues, settings.OutputApplySoftMax, settings.LossType, settings.LossOptions);
 
             int previous = settings.InputSettings.NeuronsCount;
             bool previousBias = settings.InputSettings.HasBiasNeuron;
@@ -120,7 +123,7 @@ namespace ANN.Net.Matrix
                 throw new NotSupportedException("Matrix networks need the same activation for every input");
 
             var network = new MatrixNetwork(inputs.Count, inputBias != null, inputActivation, source.ShouldNormalize, source.MinMaxValues,
-                                            source.ApplySoftMax, source.LossType);
+                                            source.ApplySoftMax, source.LossType, source.LossOptions);
 
             List<List<INeuron>> layers = (source.HiddenLayers ?? Enumerable.Empty<ILayer<IHiddenNeuron>>())
                 .Select(layer => layer.Cast<INeuron>().ToList())
@@ -194,16 +197,16 @@ namespace ANN.Net.Matrix
                 targets = targets.Select((x, i) => NetworkUtils.Normalize(x, MinMaxValues[i].Item1, MinMaxValues[i].Item2)).ToArray();
             }
 
-            var errors = new Quad[targets.Length];
             var results = new List<ErrorResult>(targets.Length);
             for (int i = 0; i < targets.Length; i++)
             {
-                errors[i] = last.Values[i] - targets[i];
-                results.Add(new ErrorResult { Target = targets[i], Predicted = last.Values[i] });
+                results.Add(new ErrorResult { Target = targets[i], Predicted = Values[i] });
             }
 
-            Errors = errors;
-            BackpropagateLayers(errors);
+            // the network learns what the loss asks for: its gradient goes back through the soft-max and every layer
+            Quad[] gradients = lossFunction.CalculateGradient(results);
+            BackpropagateLayers(OutputApplySoftMax ? GradientUtils.ThroughDivideBySum(gradients, last.Values) : (Quad[])gradients.Clone());
+            Errors = gradients;
             return lossFunction.CalculateLoss(results);
         }
 
@@ -228,7 +231,7 @@ namespace ANN.Net.Matrix
 
         private MatrixNetwork Replicate(ReplicaContext context)
         {
-            var replica = new MatrixNetwork(InputCount, InputBias, InputActivation, ShouldNormalize, MinMaxValues, OutputApplySoftMax, LossType);
+            var replica = new MatrixNetwork(InputCount, InputBias, InputActivation, ShouldNormalize, MinMaxValues, OutputApplySoftMax, LossType, LossOptions);
             replica.Layers.AddRange(Layers.Select(x => x.Replicate(context)));
             return replica;
         }

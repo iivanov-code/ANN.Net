@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using ANN.Net.Abstractions.Enums;
+using ANN.Net.Abstractions.Settings;
 
 namespace ANN.Net.Serialization
 {
@@ -16,6 +17,11 @@ namespace ANN.Net.Serialization
         public NetworkKind Kind { get; set; }
 
         public LossFunctionTypes LossType { get; set; }
+
+        /// <summary>
+        /// Parameters of the loss; absent for the defaults
+        /// </summary>
+        public LossOptions LossOptions { get; set; }
 
         public bool ShouldNormalize { get; set; }
 

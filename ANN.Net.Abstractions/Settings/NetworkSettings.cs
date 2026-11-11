@@ -8,8 +8,16 @@ namespace ANN.Net.Abstractions.Settings
 {
     public class NetworkSettings
     {
-        [DefaultValue(LossFunctionTypes.Difference)]
-        public LossFunctionTypes LossType { get; set; }
+        /// <summary>
+        /// Loss the network trains on and <see cref="INetwork.Backpropagate"/> returns
+        /// </summary>
+        [DefaultValue(LossFunctionTypes.Squared)]
+        public LossFunctionTypes LossType { get; set; } = LossFunctionTypes.Squared;
+
+        /// <summary>
+        /// Parameters of the loss, such as δ of the Huber loss; null for the defaults
+        /// </summary>
+        public LossOptions LossOptions { get; set; }
 
         public bool ShouldNormalize { get; set; }
         public List<Tuple<Quad, Quad>> MinMaxValues { get; set; }

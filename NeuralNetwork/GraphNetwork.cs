@@ -115,7 +115,7 @@ namespace ANN.Net
         internal static NetworkDocument ToPlanDocument(GraphNetworkSettings settings)
         {
             Topology topology = Prepare(settings);
-            var document = new NetworkDocument { Kind = NetworkKind.Graph, LossType = settings.LossType, OutputApplySoftMax = settings.OutputApplySoftMax };
+            var document = new NetworkDocument { Kind = NetworkKind.Graph, LossType = settings.LossType, LossOptions = settings.LossOptions, OutputApplySoftMax = settings.OutputApplySoftMax };
             var indexes = new Dictionary<uint, int>();
 
             List<int> Add(List<GraphNode> nodes, ActivationTypes defaultActivation, bool? applyActivation)
@@ -169,6 +169,7 @@ namespace ANN.Net
             var network = new Network(new NetworkSettings
             {
                 LossType = settings.LossType,
+                LossOptions = settings.LossOptions,
                 OutputApplySoftMax = settings.OutputApplySoftMax,
                 ShouldNormalize = false,
                 IdentityGenerator = ids,

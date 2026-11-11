@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ANN.Net.Abstractions.Collections;
+using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.Abstractions.Settings;
@@ -182,6 +183,14 @@ namespace ANN.Net
         public static IRecurrentNetwork BuildRecurrent(RecurrentNetworkSettings settings)
         {
             return new Recurrent.RecurrentNetwork(settings);
+        }
+
+        /// <summary>
+        /// A loss function, for example to measure a network on data it does not train on
+        /// </summary>
+        public static ILossFunction BuildLossFunction(LossFunctionTypes type, LossOptions options = null)
+        {
+            return Utils.NetworkUtils.GetLossFunction(type, options);
         }
 
         public static ITokenizer BuildBpeTokenizer(BpeTokenizerSettings settings)

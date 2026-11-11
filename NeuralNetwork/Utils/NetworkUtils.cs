@@ -1,10 +1,10 @@
 ﻿using System;
+using ANN.Net.Abstractions.Settings;
 using ANN.Net.Abstractions.Enums;
 using ANN.Net.Abstractions.Interfaces;
 using ANN.Net.Abstractions.Interfaces.Neurons;
 using ANN.Net.ActivationFunctions;
 using ANN.Net.LossFunctions;
-using ANN.Net.LossFunctions.RegressionLosses;
 using ANN.Net.Neurons;
 using ANN.Net.Optimizers;
 
@@ -306,28 +306,37 @@ namespace ANN.Net.Utils
             }
         }
 
-        internal static ILossFunction GetLossFunction(LossFunctionTypes type, float alpha = 0)
+        /// <summary>
+        /// The loss of <paramref name="type"/>; <paramref name="options"/> null uses the default parameters
+        /// </summary>
+        internal static ILossFunction GetLossFunction(LossFunctionTypes type, LossOptions options = null)
         {
-            switch (type)
+            options ??= new LossOptions();
+            options.Validate();
+
+            return type switch
             {
-                case LossFunctionTypes.Absolute:
-                    return MeanAbsoluteLossFunction.Instance;
-
-                case LossFunctionTypes.Squared:
-                    return SquaredLossFunction.Instance;
-
-                case LossFunctionTypes.Hinge:
-                    return HingeLossFunction.Instance;
-
-                case LossFunctionTypes.PseudoHuber:
-                    return new HuberLossFunction(alpha);
-
-                case LossFunctionTypes.Difference:
-                    return DifferenceLossFunction.Instance;
-
-                default:
-                    throw new ArgumentException("Not implemented loss function", nameof(type));
-            }
+                LossFunctionTypes.Difference => new DifferenceLossFunction(),
+                LossFunctionTypes.Absolute => new MeanAbsoluteLossFunction(),
+                LossFunctionTypes.Squared => new SquaredLossFunction(),
+                LossFunctionTypes.Hinge => new HingeLossFunction(),
+                LossFunctionTypes.PseudoHuber => new PseudoHuberLossFunction(options.Delta),
+                LossFunctionTypes.MeanSquared => new MeanSquareLossFunction(),
+                LossFunctionTypes.Huber => new HuberLossFunction(options.Delta),
+                LossFunctionTypes.SmoothL1 => new SmoothL1LossFunction(options.Delta),
+                LossFunctionTypes.LogCosh => new LogCoshLossFunction(),
+                LossFunctionTypes.MeanSquaredLogarithmic => new MeanSquaredLogarithmicLossFunction(),
+                LossFunctionTypes.MeanAbsolutePercentage => new MeanAbsolutePercentageLossFunction(),
+                LossFunctionTypes.Poisson => new PoissonLossFunction(),
+                LossFunctionTypes.CrossEntropy => new CrossEntropyLossFunction(),
+                LossFunctionTypes.BinaryCrossEntropy => new BinaryCrossEntropyLossFunction(),
+                LossFunctionTypes.KullbackLeibler => new KullbackLeiblerLossFunction(),
+                LossFunctionTypes.Focal => new FocalLossFunction(options.FocalGamma, options.FocalAlpha),
+                LossFunctionTypes.SquaredHinge => new SquaredHingeLossFunction(),
+                LossFunctionTypes.SoftMargin => new SoftMarginLossFunction(),
+                LossFunctionTypes.CosineDistance => new CosineDistanceLossFunction(),
+                _ => throw new ArgumentException("Not implemented loss function", nameof(type)),
+            };
         }
     }
 }

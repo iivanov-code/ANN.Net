@@ -25,20 +25,23 @@ namespace ANN.Net.Nested
         private readonly List<LearningRateOptimizer> optimizers;
         private Quad[] input;
 
-        private NestedNetwork(int inputSize, Node[] order, uint[] outputs, LossFunctionTypes lossType)
+        private NestedNetwork(int inputSize, Node[] order, uint[] outputs, LossFunctionTypes lossType, LossOptions lossOptions)
         {
             InputSize = inputSize;
             this.order = order;
             nodes = order.ToDictionary(x => x.Id);
             this.outputs = outputs;
             LossType = lossType;
-            lossFunction = NetworkUtils.GetLossFunction(lossType);
+            LossOptions = lossOptions;
+            lossFunction = NetworkUtils.GetLossFunction(lossType, lossOptions);
             optimizers = order.SelectMany(x => x.Network.Optimizers).ToList();
             OutputSize = outputs.Sum(SizeOf);
             Errors = new Quad[OutputSize];
         }
 
         internal LossFunctionTypes LossType { get; }
+
+        internal LossOptions LossOptions { get; }
 
         internal IEnumerable<(uint Id, IVectorNetwork Network, uint[] Inputs, NodeCombination Combination)> NodeList =>
             order.Select(x => (x.Id, x.Network, x.Inputs, x.Combination));
@@ -109,7 +112,7 @@ namespace ANN.Net.Nested
             }
 
             Node[] order = Sort(settings.Nodes.Where(x => needed.Contains(x.Id)).ToList());
-            var network = new NestedNetwork(settings.InputSize, order, settings.Outputs.ToArray(), settings.LossType);
+            var network = new NestedNetwork(settings.InputSize, order, settings.Outputs.ToArray(), settings.LossType, settings.LossOptions);
             foreach (Node node in order) network.CheckSizes(node);
             return network;
         }
@@ -192,15 +195,14 @@ namespace ANN.Net.Nested
             GradientUtils.CheckLength(targets, OutputSize, nameof(targets));
             if (input == null) throw new InvalidOperationException("Propagate must be called before Backpropagate");
 
-            var errors = new Quad[OutputSize];
             var results = new List<ErrorResult>(OutputSize);
-            for (int i = 0; i < errors.Length; i++)
+            for (int i = 0; i < OutputSize; i++)
             {
-                errors[i] = Values[i] - targets[i];
                 results.Add(new ErrorResult { Target = targets[i], Predicted = Values[i] });
             }
 
-            BackpropagateGradient(errors);
+            // the network learns what the loss asks for
+            BackpropagateGradient(lossFunction.CalculateGradient(results));
             return lossFunction.CalculateLoss(results);
         }
 

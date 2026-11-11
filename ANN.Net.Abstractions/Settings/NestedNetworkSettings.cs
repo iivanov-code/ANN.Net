@@ -26,9 +26,14 @@ namespace ANN.Net.Abstractions.Settings
         public List<uint> Outputs { get; set; } = new List<uint>();
 
         /// <summary>
-        /// Loss reported by <see cref="INetwork.Backpropagate"/>; the gradient is always output - target
+        /// Loss the network trains on and <see cref="INetwork.Backpropagate"/> returns
         /// </summary>
         public LossFunctionTypes LossType { get; set; } = LossFunctionTypes.Squared;
+
+        /// <summary>
+        /// Parameters of the loss, such as δ of the Huber loss; null for the defaults
+        /// </summary>
+        public LossOptions LossOptions { get; set; }
     }
 
     public class NestedNode

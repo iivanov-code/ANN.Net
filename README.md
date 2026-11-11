@@ -214,6 +214,55 @@ before training (`network.Optimizers`):
 The tests check every optimizer against its published update rule and train a layered network, a graph network, a
 1-D convolutional layered network, a convolutional network and a transformer with each of them.
 
+## Loss functions
+
+Neuron, matrix, graph and nested networks train on the loss of their `LossType`: `Backpropagate` sends the
+gradient of that loss back through the network and returns the loss. `Errors` holds that gradient, which is
+predicted - target for `Squared`. With `OutputApplySoftMax` the gradient goes through the division of the outputs by
+their sum. Convolutional, transformer, recurrent and Word2Vec networks have their own losses: cross entropy for
+soft-max outputs, otherwise half the squared error.
+
+With e = predicted - target for each of the n outputs:
+
+| `LossFunctionTypes` | Loss of one sample | For |
+|---|---|---|
+| `Squared` (default) | Σ e² / 2 | regression; its gradient is e |
+| `MeanSquared` | mean of e² | regression |
+| `Absolute` | mean of \|e\| | regression that ignores outliers (learns the median) |
+| `Huber` | mean of e² / 2 for \|e\| ≤ δ, δ(\|e\| - δ/2) beyond | regression with outliers |
+| `SmoothL1` | `Huber` / β (β = `Delta`) | the same, as in object detection |
+| `PseudoHuber` | mean of δ²(√(1 + (e/δ)²) - 1) | a smooth `Huber` |
+| `LogCosh` | mean of ln cosh e | a smooth `Huber` with δ = 1 |
+| `MeanSquaredLogarithmic` | mean of (ln(1 + p) - ln(1 + t))² | positive targets of very different sizes |
+| `MeanAbsolutePercentage` | 100 · mean of \|e\| / \|t\| | errors relative to the target |
+| `Poisson` | mean of p - t ln p | counts and rates |
+| `CrossEntropy` | Σ -t ln p | probability outputs (soft-max), one-hot targets |
+| `BinaryCrossEntropy` | mean of -(t ln p + (1 - t) ln(1 - p)) | independent probabilities (sigmoid outputs) |
+| `KullbackLeibler` | Σ t ln(t / p) | matching a target distribution |
+| `Focal` | mean of -(α t (1 - p)^γ ln p + (1 - α)(1 - t) p^γ ln(1 - p)) | rare positives |
+| `Hinge` | mean of max(0, 1 - t p) | targets -1 and 1 |
+| `SquaredHinge` | mean of max(0, 1 - t p)² | targets -1 and 1 |
+| `SoftMargin` | mean of ln(1 + exp(-t p)) | targets -1 and 1 |
+| `CosineDistance` | 1 - cos(p, t) | only the direction of the output vector counts |
+| `Difference` | Σ e, not a loss | shows whether the outputs are too high or too low; trains like `Squared` |
+
+```csharp
+var settings = new NetworkSettings
+{
+    LossType = LossFunctionTypes.Huber,
+    LossOptions = new LossOptions { Delta = 0.5f },   // δ (β of SmoothL1); FocalGamma = 2 and FocalAlpha = 0.25 for Focal
+    ...
+};
+
+ILossFunction mae = NetworkFactory.BuildLossFunction(LossFunctionTypes.Absolute);   // to measure without training
+```
+
+The loss options are saved with the network. Logarithms and divisions are clamped, so predictions of exactly 0 or 1
+give finite losses and gradients. The tests compare every loss with its formula, every gradient with finite
+differences, and the weight gradients of whole networks, with and without the soft-max. They also check that the
+loss decides what is learned: on the targets 0, 0 and 9, a network trained with `Squared` settles at their mean 3 and
+one trained with `Absolute` at their median 0.
+
 ## Convolutional networks
 
 `NetworkFactory.BuildConvolutional` builds a convolutional network from convolution, pooling and dense layers,

@@ -7,9 +7,16 @@ namespace ANN.Net.Abstractions.Interfaces
     {
         Quad[] Propagate(params Quad[] values);
 
+        /// <summary>
+        /// Trains on the targets of the last propagation with the gradient of the network's loss, and returns the loss
+        /// </summary>
         Quad Backpropagate(params Quad[] targets);
 
         Quad[] Values { get; }
+        /// <summary>
+        /// Gradient of the loss with respect to every output of the last backpropagation; predicted - target for the
+        /// squared loss
+        /// </summary>
         Quad[] Errors { get; }
 
         /// <summary>

@@ -82,7 +82,7 @@ namespace ANN.Net.Tests.Remote
             for (int i = 0; i < values.Length; i++)
             {
                 double error = (float)values[i] - (float)targets[i];
-                expectedLoss += error * error;
+                expectedLoss += error * error / 2;   // the squared loss is half the sum of squares, so its gradient is the error
                 Assert.Equal(error, (float)split.Errors[i], 5);
             }
 

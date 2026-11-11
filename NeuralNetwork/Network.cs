@@ -35,11 +35,14 @@ namespace ANN.Net
             this.Errors = new Quad[settings.OutputSettings.NeuronsCount];
             this.applySoftMax = settings.OutputApplySoftMax;
             this.Optimizers = new List<LearningRateOptimizer>();
-            this.lossFunction = NetworkUtils.GetLossFunction(settings.LossType);
+            this.lossFunction = NetworkUtils.GetLossFunction(settings.LossType, settings.LossOptions);
             this.LossType = settings.LossType;
+            this.LossOptions = settings.LossOptions;
         }
 
         internal LossFunctionTypes LossType { get; }
+
+        internal LossOptions LossOptions { get; }
 
         internal bool ShouldNormalize => shouldNormalize;
 
@@ -129,16 +132,17 @@ namespace ANN.Net
                 targets = normalizedValues;
             }
 
-            Quad[] values = OutputNeurons.Select(x => x.Value).ToArray();
+            Quad[] values = Values;
             var results = new List<ErrorResult>(targets.Length);
             for (int i = 0; i < targets.Length; i++)
             {
-                Quad error = values[i] - targets[i];
-                this.Errors[i] = error;
-                OutputNeurons[i].Backpropagate(new BackpropagateEventArgs(error));
                 results.Add(new ErrorResult { Target = targets[i], Predicted = values[i] });
             }
 
+            // the network learns what the loss asks for: its gradient goes back through the soft-max and every layer
+            Quad[] gradients = this.lossFunction.CalculateGradient(results);
+            this.BackpropagateGradient(gradients);
+            gradients.CopyTo(this.Errors, 0);
             return this.lossFunction.CalculateLoss(results);
         }
 

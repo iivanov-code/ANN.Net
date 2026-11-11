@@ -84,7 +84,15 @@ namespace ANN.Net.Abstractions.Settings
 
         public OptimizerTypes OptimizerType { get; set; } = OptimizerTypes.Normal;
 
+        /// <summary>
+        /// Loss the network trains on and <see cref="Interfaces.INetwork.Backpropagate"/> returns
+        /// </summary>
         public LossFunctionTypes LossType { get; set; } = LossFunctionTypes.Squared;
+
+        /// <summary>
+        /// Parameters of the loss, such as δ of the Huber loss; null for the defaults
+        /// </summary>
+        public LossOptions LossOptions { get; set; }
 
         public bool OutputApplySoftMax { get; set; }
 

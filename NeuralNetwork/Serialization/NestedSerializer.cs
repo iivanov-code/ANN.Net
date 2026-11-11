@@ -15,6 +15,8 @@ namespace ANN.Net.Serialization
 
         public LossFunctionTypes LossType { get; set; }
 
+        public LossOptions LossOptions { get; set; }
+
         public List<NestedNodeDocument> Nodes { get; set; } = new List<NestedNodeDocument>();
 
         public List<uint> Outputs { get; set; } = new List<uint>();
@@ -45,6 +47,7 @@ namespace ANN.Net.Serialization
             {
                 InputSize = network.InputSize,
                 LossType = network.LossType,
+                LossOptions = network.LossOptions,
                 Outputs = network.OutputIds.ToList(),
                 Nodes = network.NodeList.Select(node => new NestedNodeDocument
                 {
@@ -62,7 +65,7 @@ namespace ANN.Net.Serialization
         {
             if (document?.Nodes == null || document.Outputs == null) throw new InvalidDataException("The nested network has no nodes");
 
-            var settings = new NestedNetworkSettings { InputSize = document.InputSize, LossType = document.LossType, Outputs = document.Outputs };
+            var settings = new NestedNetworkSettings { InputSize = document.InputSize, LossType = document.LossType, LossOptions = document.LossOptions, Outputs = document.Outputs };
             foreach (NestedNodeDocument node in document.Nodes)
             {
                 if (node?.Network == null) throw new InvalidDataException("A node of the nested network has no network");
