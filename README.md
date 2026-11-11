@@ -138,9 +138,10 @@ compact networks.
 | Compact, half | 9.7 MB | 41 ms | 13 ms |
 | Compact, int8 | 5.0 MB | 39 ms | 15 ms |
 
-Recurrent networks cannot be compacted: `BuildRNN` and `BuildCellRNN` return null, LSTM and GRU cells are not
-implemented, and layers with `NeuronType.RNN` connect the neurons of a layer to each other within one propagation
-instead of to the previous time step, so they keep no state between inputs.
+Recurrent networks cannot be compacted yet: [LSTM and GRU networks](#recurrent-networks-lstm-and-gru) keep their
+weights in arrays already, but the compactor does not take them; `BuildRNN` and `BuildCellRNN` return null, and
+layers with `NeuronType.RNN` in `BuildFFN` connect the neurons of a layer to each other within one propagation instead
+of to the previous time step, so they keep no state between inputs.
 
 ## Training in batches on all processors
 
@@ -413,6 +414,82 @@ implementations, chosen with `FeedForwardType`:
 ```csharp
 settings.FeedForwardType = FeedForwardType.NeuronGraph;
 ```
+
+## Recurrent networks (LSTM and GRU)
+
+`NetworkFactory.BuildRecurrent` builds a stack of recurrent layers with a linear output, or a soft-max, at every
+step. It is an `ISequenceNetwork` like the transformer, so it trains with `Propagate` and `Backpropagate` or
+`TrainBatch` on all processors and uses every optimizer. The weights of a layer are one matrix with a row per value
+of [x, h] and a column per gate unit, so a step is one pass over it.
+
+| `CellType` | Step (z = [x(t), h(t-1)]) |
+|---|---|
+| `LSTM` | i, f, o = σ(W z + b), g = tanh(W_g z + b_g), c(t) = f ⊙ c(t-1) + i ⊙ g, h(t) = o ⊙ tanh(c(t)) |
+| `LSTMPeepHole` | the same, and the gates also see the cell: p_i ⊙ c(t-1), p_f ⊙ c(t-1), p_o ⊙ c(t) (Gers and Schmidhuber) |
+| `GRU` | r, u = σ(W z + b), n = tanh(W_n [x, r ⊙ h(t-1)] + b_n), h(t) = (1 - u) ⊙ n + u ⊙ h(t-1) (Cho et al.) |
+| `RNN` | h(t) = tanh(W z + b) |
+
+```csharp
+IRecurrentNetwork lstm = NetworkFactory.BuildRecurrent(new RecurrentNetworkSettings
+{
+    InputDimension = 2,
+    HiddenDimension = 8,         // size of h (and c) in every layer
+    LayersCount = 1,             // every layer reads the hidden vectors of the one below
+    OutputDimension = 2,
+    CellType = NeuronType.LSTM,
+    OutputApplySoftMax = true,   // cross entropy; otherwise linear outputs and the squared error
+    ForgetGateBias = 3,          // forget gates (update gates of a GRU) start open; 1 by default
+    GradientClipping = 1,        // largest L2 norm of the gradient of one sequence; 0 for none
+    OptimizerType = OptimizerTypes.Adam,
+    Seed = 1
+});
+
+foreach (LearningRateOptimizer optimizer in lstm.Optimizers) optimizer.LearningRate = 0.01f;
+
+Quad[][] targets = new Quad[sequence.Length][];   // null: no target at that step
+targets[^1] = label;                              // classify the whole sequence by its last output
+lstm.Propagate(sequence);
+lstm.Backpropagate(targets);                      // backpropagation through time
+lstm.TrainBatch(sequences, targetsOfEach);        // or mini-batches on every processor
+
+lstm.ResetState();                                // run inputs as they arrive, keeping the state
+Quad[] output = lstm.Step(input);
+```
+
+Every `Propagate` starts from a zero state and trains through the whole sequence. Sequences can have any length.
+The gradient of all weights is collected for the sequence, clipped if `GradientClipping` is set, and applied once.
+`Step` gives exactly what `Propagate` gives at the same position.
+
+The tests compare the gradient of every weight with finite differences, for every cell type, with two layers,
+soft-max and linear outputs, and targets at every step or only the last one. They also train LSTM, peephole LSTM
+and GRU networks to remember a bit across 40 noisy steps. In that task the bit comes at the first step on the same
+input as noise that follows at every other step, a second input marks the step that counts, and the network gives
+the bit after the last step. Measured with 8 hidden units, Adam at 0.01, clipping at 1, and up to 400 batches of 16
+sequences. Each cell shows the seeds that reached 99 % (median batches):
+
+| Cell | Gate bias | 30 steps | 60 steps | 100 steps |
+|---|---|---|---|---|
+| `RNN` | — | 4/5 (70) | 2/5 (100) | 2/5 (400) |
+| `GRU` | 1 | 5/5 (100) | 0/5 | 0/5 |
+| `GRU` | 3 | 5/5 (70) | 5/5 (70) | 5/5 (100) |
+| `LSTM` | 1 | 5/5 (40) | 2/5 (160) | 0/5 |
+| `LSTM` | 3 | 5/5 (40) | 5/5 (50) | 3/5 (50) |
+| `LSTMPeepHole` | 3 | 5/5 (30) | 5/5 (40) | 5/5 (40) |
+
+A gate bias of 1 is the usual default and lets the network forget quickly. For memories over more than about 30
+steps, start the gates more open: at 3 the gated cells reach 100 steps, while the plain RNN stays unreliable.
+
+On 4 cores, with 64 inputs, 128 hidden units, 10 soft-max outputs and sequences of 100 steps:
+
+| Cell | Parameters | Forward | Forward and training | Batch of 32 (per sequence) |
+|---|---|---|---|---|
+| `RNN` | 25,994 | 0.57 ms | 1.27 ms | 23.3 ms (0.73 ms) |
+| `GRU` | 75,402 | 1.22 ms | 3.12 ms | 49.5 ms (1.55 ms) |
+| `LSTM` | 100,106 | 1.83 ms | 3.94 ms | 67.0 ms (2.09 ms) |
+
+`LSTM`, `LSTMPeepHole` and `GRU` layers cannot be put into `BuildFFN`; it throws and points to `BuildRecurrent`.
+Recurrent networks cannot be saved, compacted, exported to ONNX or put into nested networks yet, and a network must
+not be used by several threads at once (`TrainBatch` uses its own copies).
 
 ## Neuron network
 

@@ -51,16 +51,9 @@ namespace ANN.Net
                             break;
 
                         case NeuronType.LSTM:
-                            neuronConstructor = (settings) => new LSTMCell(2, 2);
-                            break;
-
                         case NeuronType.LSTMPeepHole:
-                            neuronConstructor = (settings) => new LSTMCell(2, 2);
-                            break;
-
                         case NeuronType.GRU:
-                            neuronConstructor = (settings) => new GRUCell(2, 2);
-                            break;
+                            throw new NotSupportedException($"{layerSettings.CellType} layers are built with {nameof(NetworkFactory)}.{nameof(NetworkFactory.BuildRecurrent)}");
 
                         default:
                             break;

@@ -175,6 +175,15 @@ namespace ANN.Net
             return new TransformerNetwork(settings);
         }
 
+        /// <summary>
+        /// Stack of LSTM, LSTM with peepholes, GRU or plain recurrent layers with a linear (or soft-max) output at every
+        /// step, trained with backpropagation through time
+        /// </summary>
+        public static IRecurrentNetwork BuildRecurrent(RecurrentNetworkSettings settings)
+        {
+            return new Recurrent.RecurrentNetwork(settings);
+        }
+
         public static ITokenizer BuildBpeTokenizer(BpeTokenizerSettings settings)
         {
             return new BpeTokenizer(settings);
