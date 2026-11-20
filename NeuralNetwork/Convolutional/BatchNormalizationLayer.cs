@@ -62,6 +62,7 @@ namespace ANN.Net.Convolutional
             recorded = new List<(double[] Mean, double[] Variance)>();
             int index = context.LayerState.Count;
             context.LayerState.Add(recorded);
+            context.Resetters.Add(recorded.Clear);
             context.Finishers.Add(contexts =>
             {
                 foreach (ReplicaContext replica in contexts)

@@ -24,6 +24,9 @@ namespace ANN.Net.Tests.LossFunctions
         private static readonly (double T, double P)[] Signs = { (1, 0.3), (-1, 0.5), (1, 2), (-1, -0.2) };
         private static readonly (double T, double P)[] Positive = { (1, 0.5), (2, 3), (0.5, 0.25), (4, 1.5) };
 
+        // means 0.5 and 3 for the targets 1 and 2, then their variances 0.25 and 1.5 (whose targets are ignored)
+        private static readonly (double T, double P)[] Gaussian = { (1, 0.5), (2, 3), (7, 0.25), (-5, 1.5) };
+
         private static double Mean((double T, double P)[] data, Func<double, double, double> term) => data.Average(x => term(x.T, x.P));
 
         private static double Sum((double T, double P)[] data, Func<double, double, double> term) => data.Sum(x => term(x.T, x.P));
@@ -53,6 +56,8 @@ namespace ANN.Net.Tests.LossFunctions
             { LossFunctionTypes.Hinge, nameof(Signs), Mean(Signs, (t, p) => Math.Max(0, 1 - (t * p))) },
             { LossFunctionTypes.SquaredHinge, nameof(Signs), Mean(Signs, (t, p) => Math.Pow(Math.Max(0, 1 - (t * p)), 2)) },
             { LossFunctionTypes.SoftMargin, nameof(Signs), Mean(Signs, (t, p) => Math.Log(1 + Math.Exp(-t * p))) },
+            { LossFunctionTypes.GaussianNegativeLogLikelihood, nameof(Gaussian), ((Math.Log(0.25) + (0.25 / 0.25)) + (Math.Log(1.5) + (1 / 1.5))) / 4 },
+            { LossFunctionTypes.CategoricalFocal, nameof(Distribution), Sum(Distribution, (t, p) => -Math.Pow(1 - p, 2) * t * Math.Log(p)) },
             { LossFunctionTypes.CosineDistance, nameof(Regression), 1 - (Regression.Sum(x => x.T * x.P) / (Math.Sqrt(Regression.Sum(x => x.T * x.T)) * Math.Sqrt(Regression.Sum(x => x.P * x.P)))) },
         };
 
@@ -63,6 +68,7 @@ namespace ANN.Net.Tests.LossFunctions
             nameof(Distribution) => Distribution,
             nameof(Signs) => Signs,
             nameof(Positive) => Positive,
+            nameof(Gaussian) => Gaussian,
             _ => throw new ArgumentException(name),
         };
 
@@ -119,6 +125,10 @@ namespace ANN.Net.Tests.LossFunctions
             // without focusing and with even weights the focal loss is half the binary cross entropy
             List<ErrorResult> probabilities = Results(Probabilities);
             Assert.Equal(Loss(LossFunctionTypes.BinaryCrossEntropy).CalculateLoss(probabilities) / 2, Loss(LossFunctionTypes.Focal, options).CalculateLoss(probabilities), 5);
+
+            // without focusing the categorical focal loss is the cross entropy
+            List<ErrorResult> distribution = Results(Distribution);
+            Assert.Equal(Loss(LossFunctionTypes.CrossEntropy).CalculateLoss(distribution), Loss(LossFunctionTypes.CategoricalFocal, options).CalculateLoss(distribution), 5);
         }
 
         [Fact]
@@ -139,6 +149,13 @@ namespace ANN.Net.Tests.LossFunctions
                 ILossFunction loss = Loss(type);
                 foreach (List<ErrorResult> results in new[] { Results((1, 1), (0, 0)), Results((0, 1), (1, 0)), Results((0, 0), (0, 0)), Results((1, -1)) })
                 {
+                    // the Gaussian negative log likelihood needs a variance for every mean
+                    if (type == LossFunctionTypes.GaussianNegativeLogLikelihood && results.Count % 2 != 0)
+                    {
+                        Assert.Throws<ArgumentException>(() => loss.CalculateLoss(results));
+                        continue;
+                    }
+
                     Assert.True(float.IsFinite(loss.CalculateLoss(results)), $"{type} loss");
                     Assert.All(loss.CalculateGradient(results), g => Assert.True(float.IsFinite(g), $"{type} gradient"));
                 }
@@ -179,6 +196,34 @@ namespace ANN.Net.Tests.LossFunctions
 
                 Assert.Equal(expected, (float)network.Propagate(new Quad[] { 0 })[0], 0.2f);
             }
+        }
+
+        /// <summary>
+        /// Targets drawn from a normal distribution with mean 0.6 and variance 0.04: the network learns both, through
+        /// sigmoid outputs that keep the variance positive
+        /// </summary>
+        [Fact]
+        public void GaussianNegativeLogLikelihood_LearnsMeanAndVariance()
+        {
+            IMatrixNetwork network = NetworkFactory.BuildMatrixFFN(new NetworkSettings
+            {
+                Seed = 1, LossType = LossFunctionTypes.GaussianNegativeLogLikelihood,
+                InputSettings = new InputLayerSettings { NeuronsCount = 1, ActivationType = ActivationTypes.Identity, HasBiasNeuron = true },
+                OutputSettings = new OutputLayerSettings { NeuronsCount = 2, ActivationType = ActivationTypes.Sigmoid, OptimizerType = OptimizerTypes.Adam }
+            });
+            foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.005f;
+
+            var random = new Random(4);
+            for (int step = 0; step < 20000; step++)
+            {
+                double normal = Math.Sqrt(-2 * Math.Log(1 - random.NextDouble())) * Math.Cos(2 * Math.PI * random.NextDouble());
+                network.Propagate(new Quad[] { 1 });
+                network.Backpropagate((Quad)(0.6 + (0.2 * normal)), 0);
+            }
+
+            Quad[] prediction = network.Propagate(new Quad[] { 1 });
+            Assert.Equal(0.6, prediction[0], 0.05);
+            Assert.Equal(0.04, prediction[1], 0.012);
         }
 
         public static TheoryData<LossFunctionTypes, bool> NetworkCases()

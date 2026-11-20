@@ -17,7 +17,7 @@ namespace ANN.Net.Abstractions.Settings
         public float Delta { get; set; } = 1;
 
         /// <summary>
-        /// γ of <see cref="LossFunctionTypes.Focal"/>: how much less well classified outputs count; 0 gives the binary
+        /// γ of <see cref="LossFunctionTypes.Focal"/> and <see cref="LossFunctionTypes.CategoricalFocal"/>: how much less well classified outputs count; 0 gives the binary
         /// cross entropy weighted by <see cref="FocalAlpha"/>
         /// </summary>
         [DefaultValue(2f)]

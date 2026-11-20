@@ -104,5 +104,20 @@
         /// only their direction counts
         /// </summary>
         CosineDistance,
+
+        /// <summary>
+        /// Gaussian negative log likelihood: the network predicts a mean and a variance for every target. The first
+        /// half of the outputs are the means μ, the second half the variances v (keep them positive, for example with a
+        /// sigmoid activation); the second half of the targets is ignored. Mean over the n targets of
+        /// (ln(max(v, ε)) + (target - μ)² / max(v, ε)) / 2 with ε = 1e-6
+        /// </summary>
+        GaussianNegativeLogLikelihood,
+
+        /// <summary>
+        /// Focal cross entropy of a probability distribution: the sum of -(1 - predicted)^γ · target · ln(predicted),
+        /// <see cref="CrossEntropy"/> in which well classified outputs count less. γ is
+        /// <see cref="Settings.LossOptions.FocalGamma"/>; 0 gives the cross entropy
+        /// </summary>
+        CategoricalFocal,
     }
 }

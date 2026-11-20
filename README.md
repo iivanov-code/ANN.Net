@@ -244,13 +244,15 @@ With e = predicted - target for each of the n outputs:
 | `SquaredHinge` | mean of max(0, 1 - t p)² | targets -1 and 1 |
 | `SoftMargin` | mean of ln(1 + exp(-t p)) | targets -1 and 1 |
 | `CosineDistance` | 1 - cos(p, t) | only the direction of the output vector counts |
+| `GaussianNegativeLogLikelihood` | mean of (ln v + (t - μ)² / v) / 2, v clamped to ≥ 1e-6 | predicting a mean μ and its variance v: the first half of the outputs are the means, the second half the variances (keep them positive, e.g. sigmoid outputs); the second half of the targets is ignored |
+| `CategoricalFocal` | Σ -(1 - p)^γ t ln p | `CrossEntropy` in which well classified outputs count less (γ = `FocalGamma`) |
 | `Difference` | Σ e, not a loss | shows whether the outputs are too high or too low; trains like `Squared` |
 
 ```csharp
 var settings = new NetworkSettings
 {
     LossType = LossFunctionTypes.Huber,
-    LossOptions = new LossOptions { Delta = 0.5f },   // δ (β of SmoothL1); FocalGamma = 2 and FocalAlpha = 0.25 for Focal
+    LossOptions = new LossOptions { Delta = 0.5f },   // δ (β of SmoothL1); FocalGamma = 2 and FocalAlpha = 0.25 for the focal losses
     ...
 };
 
@@ -262,6 +264,55 @@ give finite losses and gradients. The tests compare every loss with its formula,
 differences, and the weight gradients of whole networks, with and without the soft-max. They also check that the
 loss decides what is learned: on the targets 0, 0 and 9, a network trained with `Squared` settles at their mean 3 and
 one trained with `Absolute` at their median 0.
+
+### Losses of whole batches: ranking, embeddings and reinforcement learning
+
+Some losses compare the outputs of several samples, so they cannot be computed one sample at a time. They train any
+vector network (matrix, neuron, graph, convolutional or nested) through `IVectorNetwork.TrainOutputs`, which
+propagates every input, asks the loss for the gradient with respect to every output, and moves the weights by the
+gradient of the whole loss. Matrix and convolutional networks compute every sample with the weights before the step,
+on all processors, and update every weight once; the result does not depend on the number of threads, as with
+`TrainBatch`. The other networks apply the samples one after the other. Every `Train` returns the loss before the
+step, and every loss also has `CalculateLoss` and `CalculateGradient` to measure without training.
+
+| Class | Loss of a batch of N | For |
+|---|---|---|
+| `PairwiseRankingLoss(RankingLossTypes.MarginRanking, δ)` | Σᵢⱼ max(0, s(ŷᵢ - ŷⱼ) + δ) / N² | ordering samples by relevance: a network with one output, the score |
+| `PairwiseRankingLoss(RankingLossTypes.SoftPairwiseHinge, δ)` | Σᵢⱼ ln(1 + exp(s(ŷᵢ - ŷⱼ) + δ)) / N² | the same, smooth |
+| `PairwiseRankingLoss(RankingLossTypes.PairwiseLogistic)` | Σᵢⱼ ln(1 + exp(s(ŷᵢ - ŷⱼ))) / N² | the same, without a margin |
+| `EmbeddingPairLoss(EmbeddingLossTypes.CosineEmbedding, α)` | mean of 1 - cos(x₁, x₂) for y = 1, max(0, cos(x₁, x₂) - α) for y = -1 | siamese networks: pairs that should point alike or not |
+| `EmbeddingPairLoss(EmbeddingLossTypes.HingeEmbedding, δ)` | mean of d for y = 1, max(0, δ - d) for y = -1, d = Σ(x₁ - x₂)² | siamese networks: pairs that should be close or apart |
+| `TripletMarginLoss(δ)` | mean of max(d(a, p) - d(a, n) + δ, 0), d squared distance | an anchor closer to a positive than to a negative example |
+| `QValueLoss(γ)` | mean of (Q(s, a) - (r + γ max Q(s', a')))² | Q-learning: one output per action |
+| `PolicyGradientLoss()` | -mean of Q · ln π(a \| s) | policy gradients (REINFORCE): soft-max outputs, one per action |
+
+For the ranking losses s = 1 - 2·[yᵢ > yⱼ] is -1 when sample i is more relevant than sample j. As in the formula, all N²
+ordered pairs count, including a sample with itself and pairs of equal relevance: they add a constant and keep equal
+relevances within the margin of each other, so the smallest loss is not 0.
+
+```csharp
+IMatrixNetwork scorer = NetworkFactory.BuildMatrixFFN(settings);          // one output: the score
+var ranking = new PairwiseRankingLoss(RankingLossTypes.PairwiseLogistic);
+Quad loss = ranking.Train(scorer, inputs, relevances);
+
+var siamese = new TripletMarginLoss(margin: 1);
+siamese.Train(embedder, anchors, positives, negatives);
+
+var q = new QValueLoss(discount: 0.9f);                                   // targets from a target network, or from the network itself
+q.Train(qNetwork, transitions, targetNetwork);                            // Transition: State, Action, Reward, NextState (null at the end)
+
+new PolicyGradientLoss().Train(policy, states, actions, advantages);
+
+// any other loss of a whole batch: write the gradient of every sample's outputs and return the loss
+network.TrainOutputs(inputs, (outputs, gradients) => { ...; return loss; });
+```
+
+The tests check every formula and gradient against finite differences, that `TrainOutputs` moves every weight by the
+gradient of the batch loss, that it trains a convolutional network exactly like `TrainBatch` (batch normalization
+included) and does not depend on the number of threads. They also check that every loss teaches what it should:
+the ranking losses order 95% of pairs right, the triplet and pair losses separate three clusters, Q-learning finds the
+values γ^(3 - s) of a corridor, a policy picks the paying action of each situation with probability above 0.9, and
+the Gaussian negative log likelihood learns both the mean and the variance of noisy targets.
 
 ## Convolutional networks
 

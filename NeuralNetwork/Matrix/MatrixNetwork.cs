@@ -229,6 +229,20 @@ namespace ANN.Net.Matrix
             });
         }
 
+        /// <summary>
+        /// One step on a loss of all outputs together; see <see cref="IVectorNetwork.TrainOutputs"/>. Every sample is
+        /// computed with the weights before the step, on several threads, and every weight is updated once
+        /// </summary>
+        public Quad TrainOutputs(IReadOnlyList<Quad[]> inputs, BatchLoss loss, BatchOptions options = null)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+            ArgumentNullException.ThrowIfNull(loss);
+
+            trainer ??= new BatchTrainer<MatrixNetwork>(Replicate);
+            return trainer.TrainOutputs(inputs.Count, options, (replica, i) => replica.Propagate(inputs[i]), loss,
+                                        (replica, _, gradient) => replica.BackpropagateGradient(gradient));
+        }
+
         private MatrixNetwork Replicate(ReplicaContext context)
         {
             var replica = new MatrixNetwork(InputCount, InputBias, InputActivation, ShouldNormalize, MinMaxValues, OutputApplySoftMax, LossType, LossOptions);

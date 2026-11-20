@@ -335,6 +335,8 @@ namespace ANN.Net.Utils
                 LossFunctionTypes.SquaredHinge => new SquaredHingeLossFunction(),
                 LossFunctionTypes.SoftMargin => new SoftMarginLossFunction(),
                 LossFunctionTypes.CosineDistance => new CosineDistanceLossFunction(),
+                LossFunctionTypes.GaussianNegativeLogLikelihood => new GaussianNegativeLogLikelihoodLossFunction(),
+                LossFunctionTypes.CategoricalFocal => new CategoricalFocalLossFunction(options.FocalGamma),
                 _ => throw new ArgumentException("Not implemented loss function", nameof(type)),
             };
         }

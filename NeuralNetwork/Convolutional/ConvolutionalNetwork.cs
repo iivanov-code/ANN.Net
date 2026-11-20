@@ -122,6 +122,21 @@ namespace ANN.Net.Convolutional
             });
         }
 
+        /// <summary>
+        /// One step on a loss of all outputs together; see <see cref="IVectorNetwork.TrainOutputs"/>. Every image is
+        /// computed with the weights before the step, on several threads, and every weight is updated once. Batch
+        /// normalization advances its running averages once per image, as in <see cref="TrainBatch"/>
+        /// </summary>
+        public Quad TrainOutputs(IReadOnlyList<Quad[]> inputs, BatchLoss loss, BatchOptions options = null)
+        {
+            ArgumentNullException.ThrowIfNull(inputs);
+            ArgumentNullException.ThrowIfNull(loss);
+
+            trainer ??= new BatchTrainer<ConvolutionalNetwork>(context => new ConvolutionalNetwork(this, context));
+            return trainer.TrainOutputs(inputs.Count, options, (replica, i) => replica.Propagate(inputs[i]), loss,
+                                        (replica, _, gradient) => replica.BackpropagateGradient(gradient));
+        }
+
         internal ConvolutionalNetworkSettings Settings { get; }
 
         /// <summary>
