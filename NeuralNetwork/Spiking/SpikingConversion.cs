@@ -131,19 +131,25 @@ namespace ANN.Net.Spiking
                         float lambda = Scale(group, columns, percentile, magnitude: true);
                         return (new SignedIntegrateAndFireActivation(negativeSlope: 0.01f), lambda, 0, lambda);
                     }
+                case ActivationTypes.ParametricRELU:
+                    {
+                        float lambda = Scale(group, columns, percentile, magnitude: true);
+                        return (new SignedIntegrateAndFireActivation(negativeSlope: ActivationFunctions.PReLUActivation.DefaultAlpha), lambda, 0, lambda);
+                    }
                 case ActivationTypes.Identity:
                     {
                         float lambda = Scale(group, columns, percentile, magnitude: true);
                         return (new SignedIntegrateAndFireActivation(negativeSlope: 1), lambda, 0, lambda);
                     }
                 case ActivationTypes.Sigmoid:
+                case ActivationTypes.SoftStep:
                     return (new SigmoidRateActivation(), 1, 0, 1);
                 case ActivationTypes.HyperbolicTangens:
                     // tanh(x) = 2 * sigmoid(2x) - 1
                     return (new SigmoidRateActivation(gain: 2), 2, -1, 1);
                 default:
                     throw new NotSupportedException($"{group.Activation} neurons cannot be converted to spiking neurons; " +
-                                                    "supported are RELU, LeakyRELU, Identity, Sigmoid and HyperbolicTangens");
+                                                    "supported are RELU, LeakyRELU, ParametricRELU, Identity, Sigmoid (SoftStep) and HyperbolicTangens");
             }
         }
 

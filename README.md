@@ -263,6 +263,40 @@ differences, and the weight gradients of whole networks, with and without the so
 loss decides what is learned: on the targets 0, 0 and 9, a network trained with `Squared` settles at their mean 3 and
 one trained with `Absolute` at their median 0.
 
+## Activation functions
+
+Every neuron, matrix layer, graph node, convolution and feed-forward block applies the activation of its
+`ActivationTypes` to its weighted sum. All of them can be saved, compacted and exported to ONNX:
+
+| `ActivationTypes` | f(x) |
+|---|---|
+| `Identity` | x |
+| `Sigmoid`, `SoftStep` | 1 / (1 + e^-x) (two names of the same function) |
+| `SoftPlus` | ln(1 + e^x) |
+| `HardSigmoid` | max(0, min(1, x / 6 + 1/2)) |
+| `HyperbolicTangens` | tanh x |
+| `ArcusTangens` | atan x |
+| `RELU` | max(0, x) |
+| `LeakyRELU` | x, 0.01 x below 0 |
+| `ParametricRELU` | x, 0.25 x below 0; the slope is fixed, not learned |
+| `BinaryStep`, `BinaryRELU` | 0 below 0, 1 from 0 on; the derivative is taken as 0 everywhere |
+| `Gaussian` | e^(-x²) |
+| `Sinusoid` | sin x |
+| `SoftSign` | x / (1 + \|x\|) |
+| `SQNL` | square nonlinearity, -1 to 1 |
+| `ISRU` | x / √(1 + x²) |
+| `GELU` | tanh approximation of x Φ(x) |
+| `SWISH` | x · sigmoid(x) |
+| `TanHShrink` | x - tanh x |
+| `SoftShrink` | x - 0.5 above 0.5, x + 0.5 below -0.5, 0 between |
+| `HardShrink` | x outside [-0.5, 0.5], 0 inside |
+
+Two values are not functions of one neuron's sum and are rejected with a `NotSupportedException` when a network is
+built: `SoftMax` divides every output by the sum over the layer, so set `OutputApplySoftMax = true` instead (with
+`Identity` outputs), and `BReLU` flips every second neuron of a layer, so it depends on the neuron's position. The
+tests check that every value is either built or rejected, compare every derivative with finite differences, and run
+each activation through a matrix network, its saved copy, its compact form and its ONNX export.
+
 ## Convolutional networks
 
 `NetworkFactory.BuildConvolutional` builds a convolutional network from convolution, pooling and dense layers,

@@ -18,9 +18,15 @@ namespace ANN.Net.Neurons
              : base(initInputs, initOutputs, id)
         {
             this.Function = NetworkUtils.GetActivation(activationType);
+            this.ActivationType = activationType;
         }
 
         public IActivationFunction Function { get; private set; }
+
+        /// <summary>
+        /// The activation type the neuron was built with, saved with the network
+        /// </summary>
+        public ActivationTypes ActivationType { get; }
 
         /// <summary>
         /// Weighted input sum of the last propagation, before activation

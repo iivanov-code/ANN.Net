@@ -107,7 +107,7 @@ namespace ANN.Net.Utils
 
         public static Quad[,] MatrixSigmoid(Quad[,] matrix)
         {
-            return matrix.ForEach(x => HardSigmoidActivation.Activate(ref x));
+            return matrix.ForEach(x => SigmoidActivation.Activate(ref x));
         }
 
         public static Quad[,] CopyMatrix(Quad[,] matrix)

@@ -112,55 +112,14 @@ namespace ANN.Net.Utils
             return (Quad)System.Math.Round(value, decimals, MidpointRounding.AwayFromZero);
         }
 
+        /// <summary>
+        /// The type the neuron was built with; kept by the neuron because several types share one function
+        /// (<see cref="ActivationTypes.BinaryRELU"/> and <see cref="ActivationTypes.BinaryStep"/>, <see cref="ActivationTypes.Sigmoid"/>
+        /// and <see cref="ActivationTypes.SoftStep"/>)
+        /// </summary>
         internal static ActivationTypes GetActivationType(this Neuron neuron)
         {
-            switch (neuron.Function)
-            {
-                case ArcTanActivation _:
-                    return ActivationTypes.ArcusTangens;
-
-                case RELUActivation _:
-                    return ActivationTypes.RELU;
-
-                case HardSigmoidActivation _:
-                    return ActivationTypes.Sigmoid;
-
-                case TanHActivation _:
-                    return ActivationTypes.HyperbolicTangens;
-
-                case IdentityActivation _:
-                    return ActivationTypes.Identity;
-
-                case LeakyRELUActivation _:
-                    return ActivationTypes.LeakyRELU;
-
-                case BinaryStepActivation _:
-                    return ActivationTypes.BinaryRELU;
-
-                case GaussianActivation _:
-                    return ActivationTypes.Gaussian;
-
-                case SinusoidActivation _:
-                    return ActivationTypes.Sinusoid;
-
-                case SoftSignActivation _:
-                    return ActivationTypes.SoftSign;
-
-                case SQNLActivation _:
-                    return ActivationTypes.SQNL;
-
-                case ISRUActivation _:
-                    return ActivationTypes.ISRU;
-
-                case GELUActivation _:
-                    return ActivationTypes.GELU;
-
-                case SwishActivation _:
-                    return ActivationTypes.SWISH;
-
-                default:
-                    throw new ArgumentException("Invalid argument", nameof(neuron.Function));
-            }
+            return neuron.ActivationType;
         }
 
         internal static NodeType GetNodeType(this INeuron neuron)
@@ -189,12 +148,23 @@ namespace ANN.Net.Utils
             return GetActivation(type);
         }
 
+        /// <summary>
+        /// The shared function of an activation type. Throws <see cref="NotSupportedException"/> for
+        /// <see cref="ActivationTypes.SoftMax"/>, which divides every output by the sum of the layer (set
+        /// <c>OutputApplySoftMax</c> on the network settings instead), and for <see cref="ActivationTypes.BReLU"/>,
+        /// which depends on the position of the neuron in its layer, so neither is a function of one neuron's sum
+        /// </summary>
         internal static IActivationFunction GetActivation(ActivationTypes type)
         {
             switch (type)
             {
                 case ActivationTypes.Sigmoid:
-                    return HardSigmoidActivation.Instance;
+                case ActivationTypes.SoftStep:
+                    // soft step is another name of the logistic sigmoid
+                    return SigmoidActivation.Instance;
+
+                case ActivationTypes.SoftPlus:
+                    return SoftPlusActivation.Instance;
 
                 case ActivationTypes.HyperbolicTangens:
                     return TanHActivation.Instance;
@@ -208,7 +178,11 @@ namespace ANN.Net.Utils
                 case ActivationTypes.LeakyRELU:
                     return LeakyRELUActivation.Instance;
 
+                case ActivationTypes.ParametricRELU:
+                    return PReLUActivation.Instance;
+
                 case ActivationTypes.BinaryRELU:
+                case ActivationTypes.BinaryStep:
                     return BinaryStepActivation.Instance;
 
                 case ActivationTypes.Identity:
@@ -235,8 +209,29 @@ namespace ANN.Net.Utils
                 case ActivationTypes.SWISH:
                     return SwishActivation.Instance;
 
+                case ActivationTypes.HardSigmoid:
+                    return HardSigmoidActivation.Instance;
+
+                case ActivationTypes.TanHShrink:
+                    return TanHShrinkActivation.Instance;
+
+                case ActivationTypes.SoftShrink:
+                    return SoftShrinkActivation.Instance;
+
+                case ActivationTypes.HardShrink:
+                    return HardShrinkActivation.Instance;
+
+                case ActivationTypes.SoftMax:
+                    throw new NotSupportedException("SoftMax normalizes a whole layer, so it is not a per-neuron activation. " +
+                                                    "Set OutputApplySoftMax = true on the network settings and give the outputs " +
+                                                    "the Identity activation instead");
+
+                case ActivationTypes.BReLU:
+                    throw new NotSupportedException("BReLU flips every second neuron of a layer, so it depends on the neuron's " +
+                                                    "position and is not a per-neuron activation. Use RELU, LeakyRELU or ParametricRELU instead");
+
                 default:
-                    throw new ArgumentException("Invalid argument", nameof(type));
+                    throw new ArgumentException($"Unknown activation type {type}", nameof(type));
             }
         }
 
