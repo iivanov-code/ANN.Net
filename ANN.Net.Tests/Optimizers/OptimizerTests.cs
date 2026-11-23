@@ -28,7 +28,8 @@ namespace ANN.Net.Tests.Optimizers
         }
 
         /// <summary>
-        /// Reference update rules (PyTorch conventions); the state lives in the closure
+        /// Reference update rules in the form of PyTorch (NAdam with a constant momentum, AMSGrad as Adam(amsgrad=True)); the
+        /// state lives in the closure. <see cref="PyTorchReferenceTests"/> checks the same rules against PyTorch itself
         /// </summary>
         private static Func<double, double, double> Reference(OptimizerTypes type, double lr)
         {
@@ -60,16 +61,18 @@ namespace ANN.Net.Tests.Optimizers
                     t++;
                     m = (Beta1 * m) + ((1 - Beta1) * g);
                     v = (Beta2 * v) + ((1 - Beta2) * g * g);
-                    double mHat = m / (1 - Math.Pow(Beta1, t)), vHat = v / (1 - Math.Pow(Beta2, t));
-                    double nesterov = (Beta1 * mHat) + ((1 - Beta1) * g / (1 - Math.Pow(Beta1, t)));
+                    double vHat = v / (1 - Math.Pow(Beta2, t));
+                    double nesterov = (Beta1 * m / (1 - Math.Pow(Beta1, t + 1))) + ((1 - Beta1) * g / (1 - Math.Pow(Beta1, t)));
                     return w - (lr * nesterov / (Math.Sqrt(vHat) + Epsilon));
                 },
                 OptimizerTypes.AmsGrad => (g, w) =>
                 {
+                    t++;
                     m = (Beta1 * m) + ((1 - Beta1) * g);
                     v = (Beta2 * v) + ((1 - Beta2) * g * g);
                     maxV = Math.Max(maxV, v);
-                    return w - (lr * m / (Math.Sqrt(maxV) + Epsilon));
+                    double mHat = m / (1 - Math.Pow(Beta1, t)), vHat = maxV / (1 - Math.Pow(Beta2, t));
+                    return w - (lr * mHat / (Math.Sqrt(vHat) + Epsilon));
                 },
                 OptimizerTypes.RMSprop => (g, w) =>
                 {

@@ -207,11 +207,11 @@ before training (`network.Optimizers`):
 | `Nesterov` | Nesterov momentum, PyTorch form (β = 0.9) | 0.01 |
 | `Adam` | Adam (β1 = 0.9, β2 = 0.999, ε = 1e-8) | 0.001 – 0.01 |
 | `AdaMax` | Adam with the infinity norm | about twice the Adam rate |
-| `Nadam` | Adam with Nesterov momentum | 0.001 – 0.01 |
-| `AmsGrad` | Adam with the largest squared average so far | 0.001 – 0.01 |
+| `Nadam` | Adam with Nesterov momentum (Dozat; constant momentum, without the momentum schedule PyTorch and Keras add by default) | 0.001 – 0.01 |
+| `AmsGrad` | Adam with the largest squared average so far, bias-corrected as in PyTorch | 0.001 – 0.01 |
 | `RMSprop` | moving average of squared gradients (ρ = 0.9) | 0.001 – 0.005 |
 
-The tests check every optimizer against its published update rule and train a layered network, a graph network, a
+The tests compare every optimizer, and the array optimizers, with the weights PyTorch's own optimizers produce, and train a layered network, a graph network, a
 1-D convolutional layered network, a convolutional network and a transformer with each of them.
 
 ## Loss functions
