@@ -126,6 +126,17 @@ namespace ANN.Net.Onnx
             return w => w.Message(5, a => a.String(1, name).Float(2, value).Int64(20, AttributeFloat));
         }
 
+        /// <summary>
+        /// Several attributes of one node
+        /// </summary>
+        public static Action<ProtoWriter> Attributes(params Action<ProtoWriter>[] attributes)
+        {
+            return w =>
+            {
+                foreach (Action<ProtoWriter> attribute in attributes) attribute(w);
+            };
+        }
+
         public static Action<ProtoWriter> FloatTensorAttribute(string name, float value)
         {
             byte[] data = BitConverter.GetBytes(value);

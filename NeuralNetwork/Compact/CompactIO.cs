@@ -50,7 +50,7 @@ namespace ANN.Net.Compact
             {
                 Utils.NetworkUtils.GetActivation(activation);
             }
-            catch (ArgumentException exception)
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
             {
                 throw new InvalidDataException($"Unsupported activation {activation}", exception);
             }

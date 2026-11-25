@@ -17,7 +17,14 @@ namespace ANN.Net.Onnx
                 case ActivationTypes.Identity:
                     return value;
                 case ActivationTypes.Sigmoid:
+                case ActivationTypes.SoftStep:
                     return graph.Node("Sigmoid", new[] { value });
+                case ActivationTypes.SoftPlus:
+                    return graph.Node("Softplus", new[] { value });
+                case ActivationTypes.HardSigmoid:
+                    return graph.Node("HardSigmoid", new[] { value }, OnnxGraph.Attributes(
+                                      OnnxGraph.FloatAttribute("alpha", ActivationFunctions.HardSigmoidActivation.Slope),
+                                      OnnxGraph.FloatAttribute("beta", ActivationFunctions.HardSigmoidActivation.Offset)));
                 case ActivationTypes.HyperbolicTangens:
                     return graph.Node("Tanh", new[] { value });
                 case ActivationTypes.ArcusTangens:
@@ -26,7 +33,11 @@ namespace ANN.Net.Onnx
                     return graph.Node("Relu", new[] { value });
                 case ActivationTypes.LeakyRELU:
                     return graph.Node("LeakyRelu", new[] { value }, OnnxGraph.FloatAttribute("alpha", 0.01f));
+                case ActivationTypes.ParametricRELU:
+                    // the slope is fixed, so a leaky ReLU with that slope
+                    return graph.Node("LeakyRelu", new[] { value }, OnnxGraph.FloatAttribute("alpha", ActivationFunctions.PReLUActivation.DefaultAlpha));
                 case ActivationTypes.BinaryRELU:
+                case ActivationTypes.BinaryStep:
                     string positive = graph.Node("GreaterOrEqual", new[] { value, Scalar(graph, 0f) });
                     return graph.Node("Cast", new[] { positive }, OnnxGraph.IntAttribute("to", 1));
                 case ActivationTypes.Sinusoid:
@@ -54,7 +65,19 @@ namespace ANN.Net.Onnx
                     string tanh = graph.Node("Tanh", new[] { graph.Node("Mul", new[] { inner, Scalar(graph, (float)Math.Sqrt(2 / Math.PI)) }) });
                     string half = graph.Node("Mul", new[] { value, Scalar(graph, 0.5f) });
                     return graph.Node("Mul", new[] { half, graph.Node("Add", new[] { tanh, Scalar(graph, 1f) }) });
+                case ActivationTypes.TanHShrink:
+                    return graph.Node("Sub", new[] { value, graph.Node("Tanh", new[] { value }) });
+                case ActivationTypes.SoftShrink:
+                    // Shrink: x - bias above lambd, x + bias below -lambd, 0 between
+                    return graph.Node("Shrink", new[] { value }, OnnxGraph.Attributes(
+                                      OnnxGraph.FloatAttribute("bias", ActivationFunctions.SoftShrinkActivation.DefaultLambda),
+                                      OnnxGraph.FloatAttribute("lambd", ActivationFunctions.SoftShrinkActivation.DefaultLambda)));
+                case ActivationTypes.HardShrink:
+                    return graph.Node("Shrink", new[] { value }, OnnxGraph.Attributes(
+                                      OnnxGraph.FloatAttribute("bias", 0f),
+                                      OnnxGraph.FloatAttribute("lambd", ActivationFunctions.HardShrinkActivation.DefaultLambda)));
                 default:
+                    // SoftMax and BReLU are no per-neuron activations, so no network has neurons with them
                     throw new NotSupportedException($"The {activation} activation cannot be exported to ONNX");
             }
         }

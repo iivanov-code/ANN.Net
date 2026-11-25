@@ -207,11 +207,11 @@ before training (`network.Optimizers`):
 | `Nesterov` | Nesterov momentum, PyTorch form (β = 0.9) | 0.01 |
 | `Adam` | Adam (β1 = 0.9, β2 = 0.999, ε = 1e-8) | 0.001 – 0.01 |
 | `AdaMax` | Adam with the infinity norm | about twice the Adam rate |
-| `Nadam` | Adam with Nesterov momentum | 0.001 – 0.01 |
-| `AmsGrad` | Adam with the largest squared average so far | 0.001 – 0.01 |
+| `Nadam` | Adam with Nesterov momentum (Dozat; constant momentum, without the momentum schedule PyTorch and Keras add by default) | 0.001 – 0.01 |
+| `AmsGrad` | Adam with the largest squared average so far, bias-corrected as in PyTorch | 0.001 – 0.01 |
 | `RMSprop` | moving average of squared gradients (ρ = 0.9) | 0.001 – 0.005 |
 
-The tests check every optimizer against its published update rule and train a layered network, a graph network, a
+The tests compare every optimizer, and the array optimizers, with the weights PyTorch's own optimizers produce, and train a layered network, a graph network, a
 1-D convolutional layered network, a convolutional network and a transformer with each of them.
 
 ## Loss functions
@@ -313,6 +313,40 @@ included) and does not depend on the number of threads. They also check that eve
 the ranking losses order 95% of pairs right, the triplet and pair losses separate three clusters, Q-learning finds the
 values γ^(3 - s) of a corridor, a policy picks the paying action of each situation with probability above 0.9, and
 the Gaussian negative log likelihood learns both the mean and the variance of noisy targets.
+
+## Activation functions
+
+Every neuron, matrix layer, graph node, convolution and feed-forward block applies the activation of its
+`ActivationTypes` to its weighted sum. All of them can be saved, compacted and exported to ONNX:
+
+| `ActivationTypes` | f(x) |
+|---|---|
+| `Identity` | x |
+| `Sigmoid`, `SoftStep` | 1 / (1 + e^-x) (two names of the same function) |
+| `SoftPlus` | ln(1 + e^x) |
+| `HardSigmoid` | max(0, min(1, x / 6 + 1/2)) |
+| `HyperbolicTangens` | tanh x |
+| `ArcusTangens` | atan x |
+| `RELU` | max(0, x) |
+| `LeakyRELU` | x, 0.01 x below 0 |
+| `ParametricRELU` | x, 0.25 x below 0; the slope is fixed, not learned |
+| `BinaryStep`, `BinaryRELU` | 0 below 0, 1 from 0 on; the derivative is taken as 0 everywhere |
+| `Gaussian` | e^(-x²) |
+| `Sinusoid` | sin x |
+| `SoftSign` | x / (1 + \|x\|) |
+| `SQNL` | square nonlinearity, -1 to 1 |
+| `ISRU` | x / √(1 + x²) |
+| `GELU` | tanh approximation of x Φ(x) |
+| `SWISH` | x · sigmoid(x) |
+| `TanHShrink` | x - tanh x |
+| `SoftShrink` | x - 0.5 above 0.5, x + 0.5 below -0.5, 0 between |
+| `HardShrink` | x outside [-0.5, 0.5], 0 inside |
+
+Two values are not functions of one neuron's sum and are rejected with a `NotSupportedException` when a network is
+built: `SoftMax` divides every output by the sum over the layer, so set `OutputApplySoftMax = true` instead (with
+`Identity` outputs), and `BReLU` flips every second neuron of a layer, so it depends on the neuron's position. The
+tests check that every value is either built or rejected, compare every derivative with finite differences, and run
+each activation through a matrix network, its saved copy, its compact form and its ONNX export.
 
 ## Convolutional networks
 

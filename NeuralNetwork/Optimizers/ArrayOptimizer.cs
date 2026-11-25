@@ -26,7 +26,7 @@ namespace ANN.Net.Optimizers
         private readonly Quad[] vHat;
         private readonly Quad[] collected;
         private uint t = 1;
-        private Quad correction1, correction2;
+        private Quad correction1, correction2, nextCorrection1;
 
         public ArrayOptimizer(OptimizerTypes type, int length)
         {
@@ -178,16 +178,20 @@ namespace ANN.Net.Optimizers
                 {
                     m[index] = (Beta1 * m[index]) + ((1 - Beta1) * gradient);
                     v[index] = (Beta2 * v[index]) + ((1 - Beta2) * gradient * gradient);
-                    Quad mHat = (Beta1 * m[index] / correction1) + ((1 - Beta1) * gradient / correction1);
+                    Quad mHat = (Beta1 * m[index] / nextCorrection1) + ((1 - Beta1) * gradient / correction1);
                     Quad vHatValue = v[index] / correction2;
                     return weight - (LearningRate * mHat / ((Quad)Sqrt(vHatValue) + Epsilon));
                 }
 
                 case OptimizerTypes.AmsGrad:
+                {
                     m[index] = (Beta1 * m[index]) + ((1 - Beta1) * gradient);
                     v[index] = (Beta2 * v[index]) + ((1 - Beta2) * gradient * gradient);
                     vHat[index] = Max(v[index], vHat[index]);
-                    return weight - (LearningRate * m[index] / ((Quad)Sqrt(vHat[index]) + Epsilon));
+                    Quad mCorrected = m[index] / correction1;
+                    Quad vCorrected = vHat[index] / correction2;
+                    return weight - (LearningRate * mCorrected / ((Quad)Sqrt(vCorrected) + Epsilon));
+                }
 
                 default:
                     throw new InvalidOperationException($"Unknown optimizer {Type}");
@@ -195,7 +199,7 @@ namespace ANN.Net.Optimizers
         }
 
         /// <summary>
-        /// Ends a step: the bias corrections of Adam, AdaMax and Nadam move on
+        /// Ends a step: the bias corrections of Adam, AdaMax, Nadam and AMSGrad move on
         /// </summary>
         public void Advance()
         {
@@ -209,6 +213,7 @@ namespace ANN.Net.Optimizers
         {
             correction1 = 1 - (Quad)Pow(Beta1, t);
             correction2 = 1 - (Quad)Pow(Beta2, t);
+            nextCorrection1 = 1 - (Quad)Pow(Beta1, t + 1);
         }
     }
 }
