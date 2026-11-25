@@ -121,6 +121,7 @@ namespace ANN.Net
             Network layered;
             NetworkKind kind;
             Dictionary<BaseSynapse, uint> connectionIds = null;
+            Kan.KanDocument kan = null;
 
             switch (network)
             {
@@ -154,6 +155,7 @@ namespace ANN.Net
                     layered = graph.Network;
                     kind = NetworkKind.Graph;
                     connectionIds = graph.Synapses.ToDictionary(x => (BaseSynapse)x.Value, x => x.Key);
+                    kan = (graph as Kan.KanNetwork)?.Layout.ToDocument();
                     break;
 
                 default:
@@ -169,7 +171,8 @@ namespace ANN.Net
                 LossOptions = layered.LossOptions,
                 ShouldNormalize = layered.ShouldNormalize,
                 OutputApplySoftMax = layered.ApplySoftMax,
-                MinMaxValues = layered.MinMaxValues?.Select(x => new[] { (float)x.Item1, (float)x.Item2 }).ToList()
+                MinMaxValues = layered.MinMaxValues?.Select(x => new[] { (float)x.Item1, (float)x.Item2 }).ToList(),
+                Kan = kan
             };
 
             // neurons in layer order, remembering the layer of each one to recognize recurrent synapses
@@ -222,8 +225,9 @@ namespace ANN.Net
                         To = to,
                         Weight = active.Weight,
                         Recurrent = kind == NetworkKind.Layered && layerOf[neuron] >= layerOf[active.Output],
-                        Optimizer = active.Optimizer.GetOptimizerType(),
-                        LearningRate = active.Optimizer is LearningRateOptimizer optimizer ? optimizer.LearningRate : null
+                        Optimizer = active.Optimizer?.GetOptimizerType() ?? OptimizerTypes.Normal,
+                        LearningRate = active.Optimizer is LearningRateOptimizer optimizer ? optimizer.LearningRate : null,
+                        Fixed = active.Optimizer == null ? true : null
                     };
 
                     if (active is SharedWeightSynapse shared)
@@ -385,6 +389,10 @@ namespace ANN.Net
 
                     synapses[i] = new SharedWeightSynapse(from, to, ids, sharedWeights[shared]);
                 }
+                else if (synapse.Fixed == true)
+                {
+                    synapses[i] = ActiveSynapse.Fixed(from, to, ids, synapse.Weight);
+                }
                 else
                 {
                     synapses[i] = new ActiveSynapse(from, to, ids, OptimizerFor(synapse, network.Optimizers, sharedOptimizers), synapse.Weight);
@@ -430,7 +438,16 @@ namespace ANN.Net
                     }
 
                     List<uint> hiddenIds = hiddenLayers.SelectMany(x => x).Where(x => x is HiddenNeuron).Select(x => x.ID).ToList();
-                    return GraphNetwork.FromNetwork(network, connections, hiddenIds);
+                    GraphNetwork graph = GraphNetwork.FromNetwork(network, connections, hiddenIds);
+                    if (document.Kan == null) return graph;
+                    try
+                    {
+                        return Kan.KanNetwork.Create(graph, Kan.KanLayout.FromDocument(document.Kan));
+                    }
+                    catch (ArgumentException exception)
+                    {
+                        throw new InvalidDataException($"The Kolmogorov-Arnold network does not match its graph: {exception.Message}", exception);
+                    }
 
                 default:
                     throw new InvalidDataException($"Unknown network kind {document.Kind}");

@@ -215,6 +215,9 @@ namespace ANN.Net.Utils
                 case ActivationTypes.TanHShrink:
                     return TanHShrinkActivation.Instance;
 
+                case ActivationTypes.CubicBSpline:
+                    return CubicBSplineActivation.Instance;
+
                 case ActivationTypes.SoftShrink:
                     return SoftShrinkActivation.Instance;
 

@@ -21,13 +21,13 @@ namespace ANN.Net
     /// every neuron lies on a path from an input to an output; the builder prunes everything else
     /// </summary>
     [Serializable]
-    internal sealed class GraphNetwork : ANNetwork, IGraphNetwork
+    internal class GraphNetwork : ANNetwork, IGraphNetwork
     {
         private readonly Network network;
         private readonly Dictionary<uint, ActiveSynapse> synapses;
         private readonly List<uint> hiddenNodeIds;
 
-        private GraphNetwork(Network network, Dictionary<uint, ActiveSynapse> synapses, List<uint> hiddenNodeIds)
+        private protected GraphNetwork(Network network, Dictionary<uint, ActiveSynapse> synapses, List<uint> hiddenNodeIds)
         {
             this.network = network;
             this.synapses = synapses;
@@ -68,7 +68,10 @@ namespace ANN.Net
 
         public int OutputSize => network.OutputSize;
 
-        public long ParameterCount => synapses.Count;
+        /// <summary>
+        /// Number of trainable connections; connections built with <see cref="GraphConnection.Trainable"/> false are left out
+        /// </summary>
+        public long ParameterCount => synapses.Values.Count(x => x.Trainable);
 
         public Quad[] BackpropagateGradient(Quad[] outputGradients) => network.BackpropagateGradient(outputGradients);
 
@@ -220,6 +223,12 @@ namespace ANN.Net
                 INeuron from = neurons[connection.FromNode];
                 INeuron to = neurons[connection.ToNode];
 
+                if (!connection.Trainable)
+                {
+                    Connect(ActiveSynapse.Fixed(from, to, ids, connection.Weight));
+                    continue;
+                }
+
                 IOptimizer optimizer = shared;
                 if (optimizer == null)
                 {
@@ -230,10 +239,14 @@ namespace ANN.Net
                     }
                 }
 
-                var synapse = new ActiveSynapse(from, to, ids, optimizer, connection.Weight);
-                to.Inputs.Add(synapse);
-                from.Outputs.Add(synapse);
-                synapses.Add(connection.Id, synapse);
+                Connect(new ActiveSynapse(from, to, ids, optimizer, connection.Weight));
+
+                void Connect(ActiveSynapse synapse)
+                {
+                    to.Inputs.Add(synapse);
+                    from.Outputs.Add(synapse);
+                    synapses.Add(connection.Id, synapse);
+                }
             }
 
             network.InputNeurons = inputLayer;

@@ -65,6 +65,13 @@ namespace ANN.Net.Onnx
                     string tanh = graph.Node("Tanh", new[] { graph.Node("Mul", new[] { inner, Scalar(graph, (float)Math.Sqrt(2 / Math.PI)) }) });
                     string half = graph.Node("Mul", new[] { value, Scalar(graph, 0.5f) });
                     return graph.Node("Mul", new[] { half, graph.Node("Add", new[] { tanh, Scalar(graph, 1f) }) });
+                case ActivationTypes.CubicBSpline:
+                    // (relu(2 - |x|)³ - 4 relu(1 - |x|)³) / 6 covers both pieces
+                    string absolute = graph.Node("Abs", new[] { value });
+                    string outer = Cube(graph, graph.Node("Relu", new[] { graph.Node("Sub", new[] { Scalar(graph, 2f), absolute }) }));
+                    string core = Cube(graph, graph.Node("Relu", new[] { graph.Node("Sub", new[] { Scalar(graph, 1f), absolute }) }));
+                    string difference = graph.Node("Sub", new[] { outer, graph.Node("Mul", new[] { core, Scalar(graph, 4f) }) });
+                    return graph.Node("Div", new[] { difference, Scalar(graph, 6f) });
                 case ActivationTypes.TanHShrink:
                     return graph.Node("Sub", new[] { value, graph.Node("Tanh", new[] { value }) });
                 case ActivationTypes.SoftShrink:
@@ -90,6 +97,11 @@ namespace ANN.Net.Onnx
         private static string Square(OnnxGraph graph, string value)
         {
             return graph.Node("Mul", new[] { value, value });
+        }
+
+        private static string Cube(OnnxGraph graph, string value)
+        {
+            return graph.Node("Mul", new[] { Square(graph, value), value });
         }
     }
 }

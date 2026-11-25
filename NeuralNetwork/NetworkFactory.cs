@@ -134,6 +134,26 @@ namespace ANN.Net
         }
 
         /// <summary>
+        /// Builds a Kolmogorov-Arnold network (Liu et al. 2024) as a graph network: every edge between two layers learns
+        /// a function of one variable, a weighted base function plus a weighted sum of basis functions on a grid, and
+        /// every node adds up its incoming edges. <see cref="IKanNetwork.EvaluateEdge"/> reads the learned functions
+        /// </summary>
+        public static IKanNetwork BuildKan(KanSettings settings)
+        {
+            (GraphNetworkSettings graph, Kan.KanLayout layout) = Kan.KanLayout.Build(settings);
+            return Kan.KanNetwork.Create(GraphNetwork.Build(graph), layout);
+        }
+
+        /// <summary>
+        /// The graph <see cref="BuildKan"/> builds, with its starting weights: to change it before building it with
+        /// <see cref="BuildGraph"/>, or to evaluate it with <c>NetworkCompactor.CompactGraph</c>
+        /// </summary>
+        public static GraphNetworkSettings KanGraph(KanSettings settings)
+        {
+            return Kan.KanLayout.Build(settings).Graph;
+        }
+
+        /// <summary>
         /// Builds a convolutional network: convolution, pooling and dense layers followed by a dense output layer
         /// </summary>
         public static IConvolutionalNetwork BuildConvolutional(ConvolutionalNetworkSettings settings)

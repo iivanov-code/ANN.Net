@@ -63,6 +63,16 @@ namespace ANN.Net.Tests.Networks
             }
         }
 
+        [Theory]
+        [InlineData(KanBasisTypes.BSpline)]
+        [InlineData(KanBasisTypes.Gaussian)]
+        public void KolmogorovArnoldNetwork_GivesTheSameOutputs(KanBasisTypes basis)
+        {
+            INetwork network = NetworkFactory.BuildKan(new KanSettings { LayerSizes = new[] { 3, 4, 2 }, Basis = basis, SplineInitScale = 0.5f, Seed = 4 });
+
+            AssertSameAsNetwork(network, 3);
+        }
+
         private static INetwork Layered(bool normalize = false, bool softMax = false, ActivationTypes inputActivation = ActivationTypes.Identity)
         {
             return NetworkFactory.BuildFFN(new NetworkSettings

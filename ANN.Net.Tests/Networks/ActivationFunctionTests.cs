@@ -22,7 +22,7 @@ namespace ANN.Net.Tests.Networks
             ActivationTypes.ParametricRELU, ActivationTypes.BinaryRELU, ActivationTypes.BinaryStep, ActivationTypes.Gaussian,
             ActivationTypes.Sinusoid, ActivationTypes.SoftSign, ActivationTypes.SQNL, ActivationTypes.ISRU,
             ActivationTypes.GELU, ActivationTypes.SWISH, ActivationTypes.HardSigmoid, ActivationTypes.TanHShrink,
-            ActivationTypes.SoftShrink, ActivationTypes.HardShrink
+            ActivationTypes.SoftShrink, ActivationTypes.HardShrink, ActivationTypes.CubicBSpline
         };
 
         /// <summary>
@@ -104,6 +104,12 @@ namespace ANN.Net.Tests.Networks
         [InlineData(ActivationTypes.HardShrink, 0.5f, 0f)]
         [InlineData(ActivationTypes.HardShrink, 0.7f, 0.7f)]
         [InlineData(ActivationTypes.HardShrink, -2f, -2f)]
+        [InlineData(ActivationTypes.CubicBSpline, 0f, 0.66666667f)]
+        [InlineData(ActivationTypes.CubicBSpline, 0.5f, 0.47916667f)]
+        [InlineData(ActivationTypes.CubicBSpline, -1f, 0.16666667f)]
+        [InlineData(ActivationTypes.CubicBSpline, 1.5f, 0.02083333f)]
+        [InlineData(ActivationTypes.CubicBSpline, 2f, 0f)]
+        [InlineData(ActivationTypes.CubicBSpline, -3f, 0f)]
         public void Activation_GivesTheKnownValue(ActivationTypes type, float x, float expected)
         {
             Assert.Equal(expected, Activate(type, x), 5);

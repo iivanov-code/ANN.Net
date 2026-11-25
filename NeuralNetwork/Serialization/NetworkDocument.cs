@@ -53,6 +53,11 @@ namespace ANN.Net.Serialization
         public List<SharedWeightDocument> SharedWeights { get; set; }
 
         /// <summary>
+        /// Shape of a graph network built by <c>NetworkFactory.BuildKan</c>, which loads as a Kolmogorov-Arnold network again
+        /// </summary>
+        public Kan.KanDocument Kan { get; set; }
+
+        /// <summary>
         /// Layers of a <see cref="NetworkKind.Convolutional"/> network
         /// </summary>
         public ConvolutionalDocument Convolutional { get; set; }
@@ -129,6 +134,11 @@ namespace ANN.Net.Serialization
         /// <see cref="Weight"/>, <see cref="Optimizer"/> and <see cref="LearningRate"/> are then ignored
         /// </summary>
         public int? SharedWeight { get; set; }
+
+        /// <summary>
+        /// True for a synapse whose weight does not train (<c>GraphConnection.Trainable</c> false); absent otherwise
+        /// </summary>
+        public bool? Fixed { get; set; }
     }
 
     /// <summary>

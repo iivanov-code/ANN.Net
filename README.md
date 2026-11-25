@@ -341,6 +341,7 @@ Every neuron, matrix layer, graph node, convolution and feed-forward block appli
 | `TanHShrink` | x - tanh x |
 | `SoftShrink` | x - 0.5 above 0.5, x + 0.5 below -0.5, 0 between |
 | `HardShrink` | x outside [-0.5, 0.5], 0 inside |
+| `CubicBSpline` | cubic B-spline bump: (4 - 6x² + 3\|x\|³) / 6 below 1, (2 - \|x\|)³ / 6 from 1 to 2, 0 beyond; the basis of Kolmogorov-Arnold networks |
 
 Two values are not functions of one neuron's sum and are rejected with a `NotSupportedException` when a network is
 built: `SoftMax` divides every output by the sum over the layer, so set `OutputApplySoftMax = true` instead (with
@@ -468,6 +469,63 @@ IGraphNetwork network = NetworkFactory.BuildGraph(new GraphNetworkSettings
 Quad[] output = network.Propagate(0.7f);
 IReadOnlyDictionary<uint, Quad> weights = network.ConnectionWeights;
 ```
+
+A connection built with `trainable: false` keeps its weight while the network learns and is not counted in
+`ParameterCount`, but still passes the gradient on to the connections before it. The flag is saved with the network.
+
+### Kolmogorov-Arnold networks (KAN)
+
+In a Kolmogorov-Arnold network (Liu et al. 2024) the edges learn the functions and the nodes only add up. Every edge
+from node i of one layer to node j of the next learns a function of one variable,
+φᵢⱼ(x) = w · SiLU(x) + Σₖ cₖ Bₖ(x), where the Bₖ are fixed bumps on a grid and w and cₖ are learned, and every node
+is the sum of its incoming edges.
+
+Such a layer is a graph network: every input of a layer feeds one hidden node per bump, whose fixed incoming connection
+(weight 1/h) and fixed bias connection (−centre/h) move the input to the bump's place on the grid, and one hidden node
+for the base function; the connections from these nodes to the next layer are w and the cₖ. With the uniform grid
+every cubic B-spline is the same `CubicBSpline` bump shifted, so the graph computes exactly the KAN of the paper.
+`NetworkFactory.BuildKan` builds that graph:
+
+```csharp
+IKanNetwork kan = NetworkFactory.BuildKan(new KanSettings
+{
+    LayerSizes = new[] { 2, 5, 1 },          // inputs, hidden nodes, outputs
+    GridSize = 5,                            // intervals between GridMinimum and GridMaximum (-1 and 1)
+    Basis = KanBasisTypes.BSpline,           // or Gaussian (FastKAN)
+    BaseActivation = ActivationTypes.SWISH,  // SiLU; null for splines alone
+    OptimizerType = OptimizerTypes.Adam,
+});
+
+kan.Propagate(x, y);
+kan.Backpropagate(target);
+
+// the learned function of the edge from input 0 to hidden node 3, e.g. to plot it or fit a formula to it
+Quad value = kan.EvaluateEdge(layer: 0, from: 0, to: 3, x: 0.25f);
+```
+
+| Setting | Default | Effect |
+|---|---|---|
+| `LayerSizes` | | nodes of every layer, inputs first, outputs last |
+| `GridSize` (G) | 5 | G + 3 cubic B-splines, or G + 1 Gaussians, per edge |
+| `GridMinimum`, `GridMaximum` | -1, 1 | where the bumps lie; inputs of a layer should mostly fall inside |
+| `Basis` | `BSpline` | `BSpline` as in KAN, `Gaussian` as in FastKAN (e^(-((x - c) / h)²)) |
+| `BaseActivation` | `SWISH` | function added to every edge with its own weight; null for none |
+| `TrainableGrid` | false | also train the place and width of every bump, so the grid follows the values |
+| `SplineInitScale` | 0.1 | standard deviation of the starting coefficients |
+| `OutputActivationType`, `OutputApplySoftMax`, `OptimizerType`, `LossType`, `Seed` | | as for other networks |
+
+A layer from n to m nodes has n · m · (G + 4) coefficients with B-splines and the base function, and n · (G + 4)
+hidden nodes. A KAN is an `IGraphNetwork` and an `IVectorNetwork`: it trains through `Backpropagate`, `TrainOutputs`
+and the batch losses, sits inside nested networks, saves and loads as a KAN again (with its grid still fixed), compacts
+with `NetworkCompactor.Compact` and exports to ONNX. `NetworkFactory.KanGraph` returns the `GraphNetworkSettings`
+instead, to change the graph before building it or to evaluate it with `NetworkCompactor.CompactGraph`.
+
+The graph network computes neuron by neuron, so a KAN is meant for the small networks KANs are used for, such as
+fitting formulas to data. The grid does not move or refine itself as in the paper (grid updates and extension), and
+pruning and symbolic fitting are left to the caller; `TrainableGrid` and `EvaluateEdge` are the means for both.
+The tests check that the bumps add up to 1 on the grid, that the outputs are the sums of `EvaluateEdge` layer by
+layer, that the gradients match finite differences, that only the coefficients train, and that a one-layer KAN learns
+sin(πx) + y² (mean squared error below 0.001, with the edges learning sin(πx) and y²) and a two-layer KAN x · y.
 
 ## Saving and loading
 

@@ -94,6 +94,13 @@ namespace ANN.Net.Abstractions.Enums
         /// <summary>
         /// Passes the value through unchanged (linear)
         /// </summary>
-        Identity = 23
+        Identity = 23,
+
+        /// <summary>
+        /// Cardinal cubic B-spline, the bump every basis function of a uniform cubic spline is a shifted copy of:
+        /// (4 - 6x² + 3|x|³) / 6 for |x| &lt; 1, (2 - |x|)³ / 6 for 1 ≤ |x| &lt; 2, 0 elsewhere. The basis functions of
+        /// Kolmogorov-Arnold networks (see <c>NetworkFactory.BuildKan</c>)
+        /// </summary>
+        CubicBSpline = 24
     }
 }

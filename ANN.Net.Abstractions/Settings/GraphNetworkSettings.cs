@@ -40,13 +40,14 @@ namespace ANN.Net.Abstractions.Settings
         public GraphConnection()
         { }
 
-        public GraphConnection(uint id, uint fromNode, uint toNode, Quad weight, bool enabled = true)
+        public GraphConnection(uint id, uint fromNode, uint toNode, Quad weight, bool enabled = true, bool trainable = true)
         {
             Id = id;
             FromNode = fromNode;
             ToNode = toNode;
             Weight = weight;
             Enabled = enabled;
+            Trainable = trainable;
         }
 
         /// <summary>
@@ -64,6 +65,12 @@ namespace ANN.Net.Abstractions.Settings
         /// Disabled connections are left out of the network
         /// </summary>
         public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// A connection that is not trainable keeps its weight while the network learns and is not counted among its
+        /// parameters; it still passes the gradient on to the connections before it
+        /// </summary>
+        public bool Trainable { get; set; } = true;
     }
 
     /// <summary>

@@ -123,5 +123,38 @@ namespace ANN.Net.Tests.Networks
             Assert.Equal(-1f, weights[11], 1);
             Assert.Equal(0.5f, weights[12], 1);
         }
+
+        [Fact]
+        public void FixedConnection_KeepsItsWeight_AndPassesTheGradientOn()
+        {
+            // 0 input, 1 hidden, 2 output; the fixed connection 1 -> 2 doubles the hidden value
+            GraphNetworkSettings settings = Linear(
+                new[] { Node(0, NodeType.INPUT), Node(1, NodeType.HIDDEN), Node(2, NodeType.OUTPUT) },
+                new[] { Link(10, 0, 1, 0.1f), new GraphConnection(11, 1, 2, 2, trainable: false) });
+            IGraphNetwork network = NetworkFactory.BuildGraph(settings);
+            Assert.Equal(1, network.ParameterCount);
+
+            foreach (LearningRateOptimizer optimizer in network.Optimizers) optimizer.LearningRate = 0.05f;
+            var random = new Random(2);
+            for (int i = 0; i < 500; i++)
+            {
+                float x = (float)random.NextDouble();
+                network.Propagate(x);
+                network.Backpropagate(3 * x);
+            }
+
+            // only the trainable connection learns: 2 · 1.5 = 3
+            Assert.Equal(2f, (float)network.ConnectionWeights[11]);
+            Assert.Equal(1.5f, network.ConnectionWeights[10], 2);
+
+            using var stream = new System.IO.MemoryStream();
+            ((ANNetwork)network).Save(stream);
+            stream.Position = 0;
+            var loaded = (IGraphNetwork)ANNetwork.Load(stream);
+            Assert.Equal(1, loaded.ParameterCount);
+            loaded.Propagate(1);
+            loaded.Backpropagate(5);
+            Assert.Equal(2f, (float)loaded.ConnectionWeights[11]);
+        }
     }
 }

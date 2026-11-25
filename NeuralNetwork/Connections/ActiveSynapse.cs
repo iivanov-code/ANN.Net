@@ -17,6 +17,24 @@ namespace ANN.Net.Connections
         }
 
         /// <summary>
+        /// A synapse whose weight never changes: it needs no optimizer and still passes the gradient on
+        /// </summary>
+        public static ActiveSynapse Fixed(INeuron input, INeuron output, IUniqueIdentityGenerator identityGenerator, Quad weight)
+        {
+            return new ActiveSynapse(input, output, identityGenerator, null, weight);
+        }
+
+        /// <summary>
+        /// False for a synapse built with <see cref="Fixed"/>
+        /// </summary>
+        public bool Trainable => optimizer != null;
+
+        public override void UpdateWeight(Quad gradient)
+        {
+            if (optimizer != null) base.UpdateWeight(gradient);
+        }
+
+        /// <summary>
         /// Updates the weight with gradient * activation of the input neuron and passes the output neuron's
         /// gradient, weighted by the weight before the update, to the input neuron. The weight changes first so
         /// that nothing is left to do once the gradient has travelled on; a remote part may report completion
